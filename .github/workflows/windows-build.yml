@@ -16,6 +16,12 @@ jobs:
         with:
           node-version: "18"
 
+      - name: Install Bun runtime
+        shell: powershell
+        run: |
+          irm https://bun.sh/install.ps1 | iex
+          "$env:USERPROFILE\.bun\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:

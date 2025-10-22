@@ -12,7 +12,7 @@
 - README と開発ドキュメントに Tauri Capabilities 設定と印刷手順を追記
 - `window.print()` の利用箇所へ Capabilities 依存関係をコメントで明記
 - プロジェクト README を再構成し、全ディレクトリの役割を整理した `docs/DIRECTORY_COMMENTS.md` を追加
-- Windows 向けビルドを自動化する GitHub Actions ワークフローを追加し、利用手順をドキュメント化
+- Windows 向けビルドを自動化する GitHub Actions ワークフローを追加し、Bun のセットアップと利用手順をドキュメント化
 
 ### 予定されている機能
 - TypeScriptのモジュール分割（types, utils, features, services）

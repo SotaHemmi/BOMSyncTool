@@ -12,17 +12,28 @@
 
 ### 必要なツール
 
+- Node.js 18 以上
+- Bun 1.x （`tauri.conf.json` の `beforeBuildCommand` で利用）
+- Rust 1.70 以上
+- Tauri CLI (`cargo install tauri-cli`)
+- 推奨: Rust Analyzer（VSCode拡張）
+
 ```bash
-# Node.js (18以上)
+# Node.js
 node --version
 
-# Rust (1.70以上)
+# Bun
+bun --version
+# 未インストールの場合 (PowerShell)
+# irm https://bun.sh/install.ps1 | iex
+
+# Rust
 rustc --version
 
 # Tauri CLI
 cargo install tauri-cli
 
-# 推奨: Rust analyzer (VSCode拡張機能)
+# VSCode Rust Analyzer 拡張 (任意)
 code --install-extension rust-lang.rust-analyzer
 ```
 

@@ -33,9 +33,13 @@
 ### 必要環境
 
 - Node.js 18 以上（npm / bun いずれも可）
+- Bun 1.x（`tauri.conf.json` の `beforeBuildCommand` で使用）
 - Rust 1.70 以上
 - Tauri CLI 2.x (`cargo install tauri-cli`)
 - 推奨: VS Code + Rust Analyzer / TypeScript ESLint
+
+> **Windows の場合**  
+> Bun は公式インストーラを PowerShell から `irm https://bun.sh/install.ps1 | iex` で導入できます。CI（GitHub Actions）でも同コマンドでセットアップしています。
 
 ### 初期化
 
