@@ -162,6 +162,7 @@ Pull Request を作成する際は、以下を確認してください。
 2. `bun run build` または `npm run build` でフロントエンドをビルド。
 3. `npm run tauri build` でプラットフォーム別のバイナリを生成。
 4. 生成物は `src-tauri/target/release/` 以下に配置されます。
+5. Windows 版は GitHub Actions の `build-windows` ワークフロー（`.github/workflows/windows-build.yml`）を手動実行しても生成可能。Artifacts から MSI/EXE を取得できます。
 
 リリースノートは `CHANGELOG.md` へ記録し、必要に応じて README の機能一覧を更新してください。
 
@@ -170,4 +171,3 @@ Pull Request を作成する際は、以下を確認してください。
 ## 📝 参考: ディレクトリコメントの詳細
 
 `docs/DIRECTORY_COMMENTS.md` に、全ディレクトリの役割と備考を網羅的に掲載しています。初めてコードベースを触る場合や、リファクタリング前の棚卸しに活用してください。
-

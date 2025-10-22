@@ -49,6 +49,19 @@ npm run tauri dev
 
 Tauri 2では Webview 側から利用するネイティブ API ごとに権限を宣言する必要があります。`src-tauri/capabilities/default.json` の `permissions` に `core:webview:allow-print` を追加済みで、main ウィンドウから `window.print()` を呼び出せるように設定しています。ウィンドウや機能を増やす際は、必要な権限が capability に含まれているか確認してください。
 
+### Windows ビルドの自動化（GitHub Actions）
+
+ローカルに Windows 環境が無い場合でも、GitHub Actions の Windows ランナーでインストーラを生成できます。`workflow_dispatch` で手動起動できるワークフローを `.github/workflows/windows-build.yml` に追加済みです。
+
+実行手順:
+
+1. GitHub 上で `Actions` タブを開く
+2. `build-windows` ワークフローを選択
+3. 「Run workflow」を押す（ブランチ指定が必要なら選択）
+4. 実行完了後、Artifacts から `bomsynctool-windows` をダウンロード（MSI / NSIS などの成果物を含む）
+
+継続的にリリースへ組み込みたい場合は、`on.push.tags` などのトリガーを追加して運用してください。証明書で署名する場合は、`secrets` に証明書情報を登録し、ワークフローへ署名ステップを追記すると便利です。
+
 ## 📁 プロジェクト構造の理解
 
 ### フロントエンド（`src/`）
