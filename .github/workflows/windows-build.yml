@@ -58,11 +58,11 @@ jobs:
       - name: Install Tauri CLI (Rust)
         run: cargo install --locked tauri-cli
 
-      - name: Build Windows bundle
-        run: cargo tauri build --bundles windows
+      - name: Build Windows binary (.exe)
+        run: cargo tauri build --bundles none
 
-      - name: Upload bundle artifacts
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bomsynctool-windows
-          path: src-tauri/target/release/bundle/**
+          name: bomsynctool-exe
+          path: src-tauri/target/release/*.exe
