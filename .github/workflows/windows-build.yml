@@ -6,6 +6,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      TAURI_SKIP_RELEASE_CHECK: "true"
 
     steps:
       - name: Checkout
@@ -32,12 +34,28 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Install frontend dependencies and build with Bun
-        run: |
-          bun install --no-cache
-          bun run build
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.cargo\registry
+            ~\.cargo\git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-      - name: Install Rust Tauri CLI
+      - name: Cache Cargo target
+        uses: actions/cache@v4
+        with:
+          path: src-tauri\target
+          key: ${{ runner.os }}-cargo-target-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-target-
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Tauri CLI (Rust)
         run: cargo install --locked tauri-cli
 
       - name: Build Windows bundle
