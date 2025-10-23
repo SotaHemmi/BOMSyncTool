@@ -14,26 +14,33 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
 
       - name: Install Bun runtime
         shell: powershell
         run: |
           irm https://bun.sh/install.ps1 | iex
-          "$env:USERPROFILE\.bun\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "$env:USERPROFILE\.bun\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Check Bun
+        run: |
+          bun --version
+          where bun
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          target: x86_64-pc-windows-msvc
-          override: true
+          targets: x86_64-pc-windows-msvc
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install frontend dependencies and build with Bun
+        run: |
+          bun install --no-cache
+          bun run build
 
-      - name: Build Windows bundle
-        run: npm run tauri build
+      - name: Install Tauri CLI and build with npm
+        run: |
+          npm install
+          npm run tauri build
 
       - name: Upload bundle artifacts
         uses: actions/upload-artifact@v4
