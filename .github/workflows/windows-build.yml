@@ -55,7 +55,7 @@ jobs:
             ${{ runner.os }}-cargo-target-
 
       - name: Install frontend dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Install Tauri CLI (Rust)
         run: cargo install --locked tauri-cli
