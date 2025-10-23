@@ -40,13 +40,10 @@ jobs:
       - name: Install Tauri CLI and build with npm
         shell: powershell
         run: |
-          if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
-          if (Test-Path package-lock.json) { Remove-Item package-lock.json }
+          $Env:TAURI_SKIP_RELEASE_CHECK = "true"
           npm cache clean --force
-          npm install --ignore-scripts
-          npm rebuild @tauri-apps/cli --build-from-source
-          npm install @tauri-apps/cli-win32-x64-msvc --no-save
           npm install
+          npm install @tauri-apps/cli-win32-x64-msvc@2.9.1 --no-save
           npm run tauri build
 
       - name: Upload bundle artifacts
