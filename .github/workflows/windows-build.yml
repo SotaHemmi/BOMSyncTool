@@ -69,14 +69,14 @@ jobs:
           Get-ChildItem $env:GITHUB_WORKSPACE\bin
           & "$env:GITHUB_WORKSPACE\bin\cargo-tauri.exe" --version
 
-      # 🏗️ v2 対応のビルド（単体 exe を出力）
-      - name: Build Windows binary (.exe) with local CLI
+      # 🏗️ v2 正式ビルド（インストーラ付き／NSISターゲット）
+      - name: Build Windows installer (.exe)
         run: |
-          & "$env:GITHUB_WORKSPACE\bin\cargo-tauri.exe" build --bundles none
+          & "$env:GITHUB_WORKSPACE\bin\cargo-tauri.exe" build --bundles nsis
 
       # 💾 成果物をアップロード
-      - name: Upload binary artifact
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bomsynctool-exe
-          path: src-tauri/target/release/*.exe
+          name: bomsynctool-installer
+          path: src-tauri/target/release/bundle/nsis/*.exe
