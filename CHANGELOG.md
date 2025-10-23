@@ -13,6 +13,7 @@
 - `window.print()` の利用箇所へ Capabilities 依存関係をコメントで明記
 - プロジェクト README を再構成し、全ディレクトリの役割を整理した `docs/DIRECTORY_COMMENTS.md` を追加
 - Windows 向けビルドを自動化する GitHub Actions ワークフローを追加し、Bun のセットアップと利用手順をドキュメント化
+- npm の optional dependency 問題に対応するため、Windows CI で `@tauri-apps/cli-win32-x64-msvc` を明示的にインストールする処理を追加
 
 ### 予定されている機能
 - TypeScriptのモジュール分割（types, utils, features, services）

@@ -73,6 +73,8 @@ Tauri 2では Webview 側から利用するネイティブ API ごとに権限�
 
 継続的にリリースへ組み込みたい場合は、`on.push.tags` などのトリガーを追加して運用してください。証明書で署名する場合は、`secrets` に証明書情報を登録し、ワークフローへ署名ステップを追記すると便利です。
 
+> **補足**: `npm` には Tauri CLI のネイティブバイナリを optional dependency として解決できない既知の不具合（npm/cli#4828）があるため、ワークフロー内で `@tauri-apps/cli-win32-x64-msvc` を追加インストールして回避しています。ローカルで同様の症状が出る場合も `npm install @tauri-apps/cli-win32-x64-msvc --no-save` を試してください。
+
 ## 📁 プロジェクト構造の理解
 
 ### フロントエンド（`src/`）

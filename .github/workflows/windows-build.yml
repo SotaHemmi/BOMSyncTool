@@ -45,6 +45,7 @@ jobs:
           npm cache clean --force
           npm install --ignore-scripts
           npm rebuild @tauri-apps/cli --build-from-source
+          npm install @tauri-apps/cli-win32-x64-msvc --no-save
           npm install
           npm run tauri build
 
