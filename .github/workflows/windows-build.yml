@@ -37,14 +37,11 @@ jobs:
           bun install --no-cache
           bun run build
 
-      - name: Install Tauri CLI and build with npm
-        shell: powershell
-        run: |
-          $Env:TAURI_SKIP_RELEASE_CHECK = "true"
-          npm cache clean --force
-          npm install
-          npm install @tauri-apps/cli-win32-x64-msvc@2.9.1 --no-save
-          npm run tauri build
+      - name: Install Rust Tauri CLI
+        run: cargo install --locked tauri-cli
+
+      - name: Build Windows bundle
+        run: cargo tauri build --bundles windows
 
       - name: Upload bundle artifacts
         uses: actions/upload-artifact@v4
