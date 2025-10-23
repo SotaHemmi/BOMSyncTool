@@ -38,7 +38,13 @@ jobs:
           bun run build
 
       - name: Install Tauri CLI and build with npm
+        shell: powershell
         run: |
+          if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
+          if (Test-Path package-lock.json) { Remove-Item package-lock.json }
+          npm cache clean --force
+          npm install --ignore-scripts
+          npm rebuild @tauri-apps/cli --build-from-source
           npm install
           npm run tauri build
 
