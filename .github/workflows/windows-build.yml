@@ -57,19 +57,19 @@ jobs:
       - name: Install frontend dependencies
         run: bun install
 
-      # 🔧 Tauri CLIをv1→v2へ確実に切り替え
-      - name: Force reinstall Tauri CLI (Rust)
+      # 🚀 Tauri CLI v2をローカルパスにインストール（PATH競合を回避）
+      - name: Install local Tauri CLI v2
         run: |
-          cargo uninstall tauri-cli || true
-          cargo install --locked tauri-cli --version "^2.0.0"
+          cargo install --root . --locked tauri-cli --version "^2.0.0"
+          echo "Installed Tauri CLI under ./bin"
 
-      # 🧾 CLIバージョン確認（ログで2.x.xを確認できる）
+      # 🧾 CLIバージョン確認（確実にv2を利用）
       - name: Check Tauri CLI version
-        run: cargo tauri --version
+        run: .\bin\tauri --version
 
       # 🏗️ v2対応のビルド（単体exeを出力）
-      - name: Build Windows binary (.exe)
-        run: cargo tauri build --bundles none
+      - name: Build Windows binary (.exe) with local CLI
+        run: .\bin\tauri build --bundles none
 
       # 💾 成果物をアップロード
       - name: Upload binary artifact
