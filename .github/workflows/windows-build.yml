@@ -60,16 +60,20 @@ jobs:
       # 🚀 Tauri CLI v2をローカルパスにインストール（PATH競合を回避）
       - name: Install local Tauri CLI v2
         run: |
-          cargo install --root . --locked tauri-cli --version "^2.0.0"
-          echo "Installed Tauri CLI under ./bin"
+          cargo install --locked tauri-cli --version "^2.0.0" --root $env:GITHUB_WORKSPACE
+
+          echo "Installed Tauri CLI under $env:GITHUB_WORKSPACE\bin"
 
       # 🧾 CLIバージョン確認（確実にv2を利用）
       - name: Check Tauri CLI version
-        run: .\bin\tauri --version
+        run: |
+          Get-ChildItem $env:GITHUB_WORKSPACE\bin
+          & "$env:GITHUB_WORKSPACE\bin\tauri.exe" --version
 
       # 🏗️ v2対応のビルド（単体exeを出力）
       - name: Build Windows binary (.exe) with local CLI
-        run: .\bin\tauri build --bundles none
+        run: |
+          & "$env:GITHUB_WORKSPACE\bin\tauri.exe" build --bundles none
 
       # 💾 成果物をアップロード
       - name: Upload binary artifact
