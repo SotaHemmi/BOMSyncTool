@@ -2,8 +2,8 @@ name: build-windows
 
 on:
   push:
-    branches: [ main ]    # mainブランチへのpushで自動実行
-  workflow_dispatch:       # 手動実行も許可
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -57,14 +57,15 @@ jobs:
       - name: Install frontend dependencies
         run: bun install
 
+      # 🔧 Tauri v2 CLIをインストール
       - name: Install Tauri CLI (Rust)
-        run: cargo install --locked tauri-cli
+        run: cargo install --locked tauri-cli --version "^2.0.0"
 
-      # 実行ファイル(.exe)をビルド（インストーラーなし）
+      # 🏗️ v2対応のビルド（単体exeを出力）
       - name: Build Windows binary (.exe)
         run: cargo tauri build --bundles none
 
-      # 成果物(.exe)をアップロード
+      # 💾 成果物をアップロード
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
