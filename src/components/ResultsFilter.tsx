@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import type { ReactNode } from 'react';
 import type { ExportGroupConfig } from './exportTypes';
+import { ResultsActionBar } from './ResultsActionBar';
 
 export type ResultsFilterType = 'all' | 'diff' | 'added' | 'removed' | 'changed';
 
@@ -19,6 +19,7 @@ interface ResultsFilterProps {
   onPrint?: () => void;
   exportGroups?: ExportGroupConfig[];
   disabled?: boolean;
+  filtersEnabled?: boolean;
 }
 
 interface FilterButtonConfig {
@@ -43,27 +44,13 @@ export function ResultsFilter({
   onFilterChange,
   onPrint,
   exportGroups,
-  disabled = false
+  disabled = false,
+  filtersEnabled = true
 }: ResultsFilterProps) {
   const groups = useMemo(() => exportGroups ?? [], [exportGroups]);
-
-  // visible が true のグループのみをフィルタリング
-  const visibleGroups = useMemo(() => {
-    return groups.filter(group => {
-      // visible が未定義の場合は常に表示（後方互換性）
-      if (group.visible === undefined) return true;
-      return group.visible === true;
-    });
-  }, [groups]);
-
-  const hasExportGroups = visibleGroups.some(group =>
-    group && Object.values(group.handlers).some(handler => typeof handler === 'function')
-  );
-
-  const hasActions = Boolean((onPrint || hasExportGroups) && counts.all > 0);
-
+  const isInteractive = filtersEnabled && !disabled;
   const handleFilterClick = (next: ResultsFilterType) => {
-    if (disabled) return;
+    if (!isInteractive) return;
     if (filter === next) return;
     onFilterChange(next);
   };
@@ -91,7 +78,7 @@ export function ResultsFilter({
               type="button"
               className={`filter-button${className ? ` ${className}` : ''}${filter === key ? ' is-active' : ''}`}
               onClick={() => handleFilterClick(key)}
-              disabled={disabled}
+              disabled={disabled || !filtersEnabled}
               aria-pressed={filter === key}
             >
               {label}
@@ -117,85 +104,12 @@ export function ResultsFilter({
         })}
       </div>
 
-      {hasActions ? (
-        <div className="results-actions">
-          <button
-            id="print-results"
-            type="button"
-            className="ghost-button"
-            onClick={handlePrint}
-            disabled={disabled || counts.all === 0}
-          >
-            印刷
-          </button>
-          {visibleGroups.map(group => {
-            const buttons: ReactNode[] = [];
-            if (group.handlers.csv) {
-              buttons.push(
-                <button
-                  key={`${group.source}-csv`}
-                  type="button"
-                  className="outline-button"
-                  onClick={group.handlers.csv}
-                  disabled={disabled || counts.all === 0}
-                >
-                  CSVエクスポート
-                </button>
-              );
-            }
-            if (group.handlers.eco) {
-              buttons.push(
-                <button
-                  key={`${group.source}-eco`}
-                  type="button"
-                  className="outline-button"
-                  onClick={group.handlers.eco}
-                  disabled={disabled || counts.all === 0}
-                >
-                  ECOエクスポート
-                </button>
-              );
-            }
-            if (group.handlers.ccf) {
-              buttons.push(
-                <button
-                  key={`${group.source}-ccf`}
-                  type="button"
-                  className="outline-button"
-                  onClick={group.handlers.ccf}
-                  disabled={disabled || counts.all === 0}
-                >
-                  CCFエクスポート
-                </button>
-              );
-            }
-            if (group.handlers.msf) {
-              buttons.push(
-                <button
-                  key={`${group.source}-msf`}
-                  type="button"
-                  className="outline-button"
-                  onClick={group.handlers.msf}
-                  disabled={disabled || counts.all === 0}
-                >
-                  MSFエクスポート
-                </button>
-              );
-            }
-
-            if (buttons.length === 0) {
-              return null;
-            }
-
-            return (
-              <div className="results-export-group" data-export-source={group.source} key={group.source}>
-                <span className="results-export-title">{group.label}</span>
-                <div className="results-export-buttons">{buttons}</div>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+      <ResultsActionBar
+        onPrint={handlePrint}
+        exportGroups={groups}
+        disabled={disabled}
+        hasData={counts.all > 0}
+      />
     </div>
   );
 }

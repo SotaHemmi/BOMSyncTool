@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnRole, DatasetKey, DiffRow, ParseResult } from './types';
 import { ProjectTabs } from './components/ProjectTabs';
 import { BOMCompare } from './components/BOMCompare';
-import { CompareResults } from './components/CompareResults';
+import { CompareResults, type NormalizedStatus } from './components/CompareResults';
 import type { ResultsFilterType } from './components/ResultsFilter';
 import {
   EditModal,
@@ -84,6 +84,9 @@ function App() {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>('projects');
   const [diffResults, setDiffResults] = useState<DiffRow[] | null>(null);
+  const [resultMode, setResultMode] = useState<'comparison' | 'replacement' | null>(null);
+  const [replacementResult, setReplacementResult] = useState<ParseResult | null>(null);
+  const [replacementStatuses, setReplacementStatuses] = useState<NormalizedStatus[] | null>(null);
   const [resultsFilter, setResultsFilter] = useState<ResultsFilterType>('diff');
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingDatasets, setLoadingDatasets] = useState<Record<DatasetKey, boolean>>({
@@ -185,6 +188,11 @@ function App() {
         bomB.reset();
       }
       setDiffResults(null);
+      setResultMode(null);
+      setReplacementResult(null);
+      setReplacementStatuses(null);
+      setCurrentDiffs([]);
+      setMergedBom(null);
       lastSyncedProjectRef.current = { id: null, savedAt: null };
       return;
     }
@@ -209,6 +217,11 @@ function App() {
     }
 
     setDiffResults(null);
+    setResultMode(null);
+    setReplacementResult(null);
+    setReplacementStatuses(null);
+    setCurrentDiffs([]);
+    setMergedBom(null);
     lastSyncedProjectRef.current = { id, savedAt };
   }, [activeProject, bomA, bomB]);
 
@@ -234,6 +247,9 @@ function App() {
       try {
         await loader(path, displayName);
         setDiffResults(null);
+        setReplacementResult(null);
+        setReplacementStatuses(null);
+        setResultMode(null);
         setCurrentDiffs([]);
         setMergedBom(null);
         setResultsFilter('diff');
@@ -270,11 +286,14 @@ function App() {
     }
     setIsProcessing(true);
     setMergedBom(null);
+    setReplacementResult(null);
+    setReplacementStatuses(null);
     try {
       const diffs = await compareBoms(bomA.parseResult, bomB.parseResult);
       setDiffResults(diffs);
       setResultsFilter('diff');
       setCurrentDiffs(diffs);
+      setResultMode('comparison');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       alert(`比較に失敗しました: ${message}`);
@@ -290,11 +309,65 @@ function App() {
     }
     setIsProcessing(true);
     try {
-      const merged = await updateAndAppendBoms(bomA.parseResult, bomB.parseResult);
+      const sourceA = bomA.parseResult;
+      const sourceB = bomB.parseResult;
+      const diffs = await compareBoms(sourceA, sourceB);
+      const normalizeStatusValue = (status: string | undefined | null): NormalizedStatus => {
+        if (!status) return 'other';
+        const value = status.toLowerCase();
+        if (value === 'added') return 'added';
+        if (value === 'remove' || value === 'removed' || value === 'delete' || value === 'deleted') {
+          return 'removed';
+        }
+        if (
+          value === 'modified' ||
+          value === 'modify' ||
+          value === 'change' ||
+          value === 'changed' ||
+          value === 'diff'
+        ) {
+          return 'modified';
+        }
+        if (value === 'same' || value === 'identical' || value === 'unchanged') {
+          return 'unchanged';
+        }
+        return 'other';
+      };
+
+      const normalizedDiffs = diffs.map(diff => ({
+        ...diff,
+        normalized: normalizeStatusValue(diff.status)
+      }));
+
+      const merged = await updateAndAppendBoms(sourceA, sourceB);
       bomA.updateFromParseResult(merged, bomA.fileName);
+
+      const baseRowCount = sourceA.rows.length;
+      const statuses: NormalizedStatus[] = new Array(merged.rows.length).fill('unchanged');
+
+      normalizedDiffs.forEach(diff => {
+        if (diff.a_index !== null && diff.a_index < baseRowCount) {
+          statuses[diff.a_index] = diff.normalized;
+        }
+      });
+
+      const addedDiffs = normalizedDiffs
+        .filter(diff => diff.normalized === 'added')
+        .sort((a, b) => (a.b_index ?? 0) - (b.b_index ?? 0));
+
+      addedDiffs.forEach((_, order) => {
+        const targetIndex = baseRowCount + order;
+        if (targetIndex < statuses.length) {
+          statuses[targetIndex] = 'added';
+        }
+      });
+
       setDiffResults(null);
       setCurrentDiffs([]);
       setMergedBom(merged);
+      setReplacementResult(merged);
+      setReplacementStatuses(statuses);
+      setResultMode('replacement');
       alert('BOM A を BOM B で置き換えました。');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -523,6 +596,11 @@ function App() {
     [runExport]
   );
 
+  const hasComparisonExport = diffResults !== null && diffResults.length > 0;
+  const hasReplacementExport = Boolean(replacementResult && replacementResult.rows.length > 0);
+  const activeResultMode =
+    resultMode ?? (hasComparisonExport ? 'comparison' : hasReplacementExport ? 'replacement' : null);
+
   const exportGroups = useMemo<ExportGroupConfig[]>(
     () => [
       {
@@ -533,7 +611,8 @@ function App() {
           eco: makeExportHandler('comparison', exportToECO),
           ccf: makeExportHandler('comparison', exportToCCF),
           msf: makeExportHandler('comparison', exportToMSF)
-        }
+        },
+        visible: resultMode === 'comparison' && hasComparisonExport
       },
       {
         source: 'replacement',
@@ -543,10 +622,11 @@ function App() {
           eco: makeExportHandler('replacement', exportToECO),
           ccf: makeExportHandler('replacement', exportToCCF),
           msf: makeExportHandler('replacement', exportToMSF)
-        }
+        },
+        visible: resultMode === 'replacement' && hasReplacementExport
       }
     ],
-    [makeExportHandler]
+    [hasComparisonExport, hasReplacementExport, makeExportHandler, resultMode]
   );
 
   const handleEditCellFocus = useCallback((dataset: DatasetKey, row: number, column: number) => {
@@ -677,8 +757,8 @@ function App() {
         <div className="brand">
           <h1>
             BOMSyncTool
-            <span className="brand-version" aria-label="version 0.10">
-              v0.10
+            <span className="brand-version" aria-label="version 0.3.0">
+              v0.3.0
             </span>
           </h1>
         </div>
@@ -727,6 +807,9 @@ function App() {
         onPrint={() => window.print()}
         exportGroups={exportGroups}
         isLoading={isProcessing}
+        mode={activeResultMode}
+        replacementResult={replacementResult}
+        replacementStatuses={replacementStatuses}
       />
 
       <div className="supplementary-panel">
