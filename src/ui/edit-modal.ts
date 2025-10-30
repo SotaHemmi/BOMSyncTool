@@ -7,6 +7,7 @@ import type { DatasetKey } from '../types';
 import { datasetState, editModalState, setEditModalState } from '../state/app-state';
 import { openEditModalForDataset, renderEditTable as renderEditTableInternal } from './column-editor';
 import { updateDropzone as refreshDropzonePreview, updatePreviewCard, syncPreviewEmptyState } from './dataset-view';
+import { autoSaveActiveProject } from '../core/project-manager';
 
 function cloneRows(rows: string[][]): string[][] {
   return rows.map(row => [...row]);
@@ -18,7 +19,7 @@ export function openEditModal(dataset: DatasetKey): void {
 
 export const renderEditTable = renderEditTableInternal;
 
-export function saveEdit(): void {
+export async function saveEdit(): Promise<void> {
   if (!editModalState) return;
 
   const dataset = editModalState.dataset;
@@ -38,6 +39,10 @@ export function saveEdit(): void {
   refreshDropzonePreview(dataset);
   updatePreviewCard(dataset);
   syncPreviewEmptyState();
+
+  // 自動保存を実行してプロジェクトに変更を保存
+  await autoSaveActiveProject();
+
   alert('編集内容を保存しました。');
 }
 

@@ -160,7 +160,11 @@ function DropzonePreview({ dataset, adapter }: DropzonePreviewProps) {
             type="button"
             className="ghost-button"
             data-open-edit={dataset}
-            disabled
+            disabled={!adapter.openEdit || adapter.isLoading || !hasData}
+            onClick={() => {
+              if (!adapter.openEdit || adapter.isLoading || !hasData) return;
+              adapter.openEdit();
+            }}
           >
             編集
           </button>

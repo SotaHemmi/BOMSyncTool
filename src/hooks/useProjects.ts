@@ -234,9 +234,13 @@ export function useProjects(): UseProjectsResult {
   const createProject = useCallback(
     (name?: string) => {
       const now = new Date().toISOString();
+
+      // デフォルト名を生成（日付形式）
+      const defaultName = name || generateDefaultProjectName();
+
       const newProject: ProjectRecord = {
         id: `project-${Date.now()}`,
-        name: name ?? `プロジェクト ${projects.length + 1}`,
+        name: defaultName,
         createdAt: now,
         updatedAt: now,
         data: createEmptyProjectSnapshot()
@@ -253,7 +257,7 @@ export function useProjects(): UseProjectsResult {
       logActivity('新しいタブを作成しました。');
       return newProject;
     },
-    [projects.length, setActiveProject]
+    [projects, setActiveProject]
   );
 
   const loadProject = useCallback(
@@ -339,11 +343,20 @@ export function useProjects(): UseProjectsResult {
           } else {
             // 最後のタブが削除された場合、新しいタブを自動作成
             resetAllState();
-            const newProject = createProject();
-            const newProjects = [newProject];
+
+            const now = new Date().toISOString();
+            const newProject: ProjectRecord = {
+              id: `project-${Date.now()}`,
+              name: generateDefaultProjectName(),
+              createdAt: now,
+              updatedAt: now,
+              data: createEmptyProjectSnapshot()
+            };
+
             setActiveProject(newProject.id);
-            saveStoredProjects(newProjects);
-            return newProjects;
+            saveStoredProjects([newProject]);
+            logActivity('新しいタブを作成しました。');
+            return [newProject];
           }
         } else {
           saveStoredProjects(updated);

@@ -372,11 +372,12 @@ body {
 }
 
 /* 全画面時にBOM AとBOM Bを横並びに（他の要素は縦のまま） */
-@media (min-width: 1200px) {
+@media (min-width: 1000px) {
   .control-panel-vertical {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 24px;
+    gap: 20px;
+    align-items: start;
   }
 
   /* .dropzoneは自動的に2列に配置される */
@@ -388,7 +389,7 @@ body {
   }
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 1000px) {
   .primary-actions {
     flex-direction: row;
     justify-content: center;
@@ -559,21 +560,30 @@ body {
   display: flex;
   gap: 12px;
   align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .drop-preview-table {
-  flex: 1;
+  flex: 1 1 300px;
   min-width: 0;
+  max-width: 100%;
 }
 
 /* Column Settings Panel */
 .column-settings-panel {
-  flex-shrink: 0;
-  width: 240px;
+  flex: 0 0 220px;
+  width: 220px;
   padding: 12px;
   background: #f8f9fa;
   border-radius: 6px;
   border: 1px solid #e4e8ef;
+}
+
+@media (min-width: 1000px) {
+  .column-settings-panel {
+    flex: 0 0 200px;
+    width: 200px;
+  }
 }
 
 .column-settings-panel h4 {
@@ -955,11 +965,13 @@ body {
   border: 1px solid #dbe3f0;
   border-radius: 12px;
   background: #ffffff;
+  max-width: 100%;
 }
 
 .preview-table-wrapper table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 .preview-table-wrapper th,
@@ -968,6 +980,10 @@ body {
   padding: 6px 8px;
   font-size: 11px;
   text-align: left;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .preview-table-wrapper .cell-with-error {
@@ -1318,8 +1334,8 @@ body {
   border-radius: 20px;
   padding: 0;
   max-width: 960px;
-  width: min(95vw, 960px);
-  max-height: 90vh;
+  width: min(90vw, 960px);
+  max-height: 85vh;
   box-shadow: 0 32px 60px rgba(15, 23, 42, 0.2);
   overflow: hidden;
   display: flex;
@@ -1418,6 +1434,7 @@ body {
   overflow: auto;
   border-radius: 10px;
   border: 1px solid #dbe3f0;
+  max-width: 100%;
 }
 
 .modal-warnings {

@@ -116,6 +116,7 @@ function App() {
       a: { ...DEFAULT_EDIT_PREPROCESS },
       b: { ...DEFAULT_EDIT_PREPROCESS }
     });
+  const autoSaveDebounceRef = useRef<number | null>(null);
 
   const getBom = useCallback(
     (dataset: DatasetKey) => (dataset === 'a' ? bomA : bomB),
@@ -200,10 +201,15 @@ function App() {
     const { id, data, name } = activeProject;
     const savedAt = data.savedAt;
     const previous = lastSyncedProjectRef.current;
-    if (previous.id === id && previous.savedAt === savedAt) {
+
+    // プロジェクトIDが変わった時だけ状態をリセット（自動保存時は保持）
+    if (previous.id === id) {
+      // 同じプロジェクトの場合、savedAtが変わっても状態を保持
+      lastSyncedProjectRef.current = { id, savedAt };
       return;
     }
 
+    // 異なるプロジェクトに切り替わった場合のみリセット
     if (data.bomA) {
       bomA.updateFromParseResult(data.bomA, name);
     } else if (bomA.parseResult) {
@@ -234,7 +240,43 @@ function App() {
     return () => {
       projects.stopAutoSave();
     };
-  }, [projects.startAutoSave, projects.stopAutoSave, settings.settings.autoIntervalMinutes]);
+  }, [settings.settings.autoIntervalMinutes]);
+
+  const scheduleAutoSave = useCallback(() => {
+    if (!projects.activeProjectId) {
+      return;
+    }
+    if (autoSaveDebounceRef.current !== null) {
+      window.clearTimeout(autoSaveDebounceRef.current);
+    }
+    autoSaveDebounceRef.current = window.setTimeout(() => {
+      projects.saveProject();
+      autoSaveDebounceRef.current = null;
+    }, 1500);
+  }, [projects]);
+
+  useEffect(() => {
+    scheduleAutoSave();
+    return () => {
+      if (autoSaveDebounceRef.current !== null) {
+        window.clearTimeout(autoSaveDebounceRef.current);
+        autoSaveDebounceRef.current = null;
+      }
+    };
+  }, [
+    scheduleAutoSave,
+    projects.activeProjectId,
+    bomA.parseResult,
+    bomA.columnRoles,
+    bomA.errors,
+    bomA.fileName,
+    bomA.lastUpdated,
+    bomB.parseResult,
+    bomB.columnRoles,
+    bomB.errors,
+    bomB.fileName,
+    bomB.lastUpdated
+  ]);
 
   const handleLoadFile = useCallback(
     async (
@@ -340,7 +382,6 @@ function App() {
       }));
 
       const merged = await updateAndAppendBoms(sourceA, sourceB);
-      bomA.updateFromParseResult(merged, bomA.fileName);
 
       const baseRowCount = sourceA.rows.length;
       const statuses: NormalizedStatus[] = new Array(merged.rows.length).fill('unchanged');
@@ -368,7 +409,6 @@ function App() {
       setReplacementResult(merged);
       setReplacementStatuses(statuses);
       setResultMode('replacement');
-      alert('BOM A を BOM B で置き換えました。');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       alert(`置き換えに失敗しました: ${message}`);
@@ -551,8 +591,11 @@ function App() {
       bom.updateFromParseResult(updated, bom.fileName);
       setEditRows(prev => ({ ...prev, [dataset]: cloneRows(rows) }));
       setEditModalOpen(false);
+
+      // 編集内容を自動保存
+      projects.saveProject();
     },
-    [editRows, getBom]
+    [editRows, getBom, projects]
   );
 
   const handleProjectTabChange = useCallback(
@@ -757,8 +800,8 @@ function App() {
         <div className="brand">
           <h1>
             BOMSyncTool
-            <span className="brand-version" aria-label="version 0.3.0">
-              v0.3.0
+            <span className="brand-version" aria-label="version 0.3.1">
+              v0.3.1
             </span>
           </h1>
         </div>
