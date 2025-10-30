@@ -339,7 +339,7 @@ export function useProjects(): UseProjectsResult {
           } else {
             // 最後のタブが削除された場合、新しいタブを自動作成
             resetAllState();
-            const newProject = createNewProject();
+            const newProject = createProject();
             const newProjects = [newProject];
             setActiveProject(newProject.id);
             saveStoredProjects(newProjects);

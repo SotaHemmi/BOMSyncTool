@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { ColumnRole, DatasetKey, ParseResult } from '../types';
-import { datasetLabel, formatDateLabel } from '../utils';
+import { datasetLabel } from '../utils';
 import { Dropzone } from './Dropzone';
 import { PreviewTable, deriveColumns, MULTIPLE_COLUMN_TOKEN } from './DatasetCard';
 
@@ -142,17 +142,6 @@ function DropzonePreview({ dataset, adapter }: DropzonePreviewProps) {
 
     return assignments;
   }, [adapter.columnRoles, parseResult]);
-
-  const meta = useMemo(() => {
-    if (!parseResult) return '-';
-    const rowCount = parseResult.rows.length;
-    const columnCount = columns.length || (parseResult.headers?.length ?? 0);
-    return [
-      `行数: ${rowCount.toLocaleString()}`,
-      `列数: ${columnCount}`,
-      `更新: ${formatDateLabel(adapter.lastUpdated ?? null)}`
-    ].join(' / ');
-  }, [adapter.lastUpdated, columns.length, parseResult]);
 
   return (
     <>

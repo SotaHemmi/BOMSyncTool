@@ -142,9 +142,13 @@ function updateDropzone(dataset: DatasetKey) {
       const list = document.createElement('ul');
       relevantErrors.slice(0, 3).forEach(err => {
         const li = document.createElement('li');
-        li.textContent = hasStructured ? err.message : err;
-        if (hasStructured && err.severity) {
-          li.classList.add(err.severity);
+        if (typeof err === 'string') {
+          li.textContent = err;
+        } else {
+          li.textContent = err.message;
+          if (err.severity) {
+            li.classList.add(err.severity);
+          }
         }
         list.appendChild(li);
       });
