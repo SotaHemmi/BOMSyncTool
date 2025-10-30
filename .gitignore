@@ -55,6 +55,13 @@ Desktop.ini
 # Linux
 *~
 
+# Backup files
+*.old
+*.backup
+*.bak
+*-backup
+*.full-backup
+
 # Environment files
 .env
 .env.local

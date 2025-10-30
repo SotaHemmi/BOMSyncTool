@@ -14,8 +14,9 @@ pub fn save_session_to_file(path: String, content: String) -> Result<(), AppErro
         })?;
     }
 
-    fs::write(&path, content)
-        .map_err(|err| AppError::new(format!("セッションファイルの書き込みに失敗しました: {err}")))?;
+    fs::write(&path, content).map_err(|err| {
+        AppError::new(format!("セッションファイルの書き込みに失敗しました: {err}"))
+    })?;
 
     Ok(())
 }
@@ -30,8 +31,9 @@ pub fn load_session_from_file(path: String) -> Result<String, AppError> {
         )));
     }
 
-    let content = fs::read_to_string(&path)
-        .map_err(|err| AppError::new(format!("セッションファイルの読み込みに失敗しました: {err}")))?;
+    let content = fs::read_to_string(&path).map_err(|err| {
+        AppError::new(format!("セッションファイルの読み込みに失敗しました: {err}"))
+    })?;
 
     Ok(content)
 }

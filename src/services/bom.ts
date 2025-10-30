@@ -3,10 +3,13 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { BomRow, ColumnMeta, ColumnRole, ParseResult } from '../types';
+import type { ParseResult } from '../types';
 
 /**
  * BOMファイルをパースする
+ *
+ * @param path - ファイルパス
+ * @returns パース結果（rows, column_roles, column_order含む）
  */
 export async function parseBomFile(path: string): Promise<ParseResult> {
   return await invoke<ParseResult>('parse_bom_file', { path });
@@ -38,16 +41,4 @@ export async function loadDictionary(dictionaryName: string): Promise<string> {
  */
 export async function saveDictionary(dictionaryName: string, content: string): Promise<void> {
   await invoke('save_dictionary', { dictionaryName, content });
-}
-
-export async function normalizeBomData(
-  columns: ColumnMeta[],
-  rows: string[][],
-  columnRoles: Record<string, ColumnRole>
-): Promise<BomRow[]> {
-  return await invoke<BomRow[]>('normalize_bom_data', {
-    columns,
-    rows,
-    columnRoles
-  });
 }

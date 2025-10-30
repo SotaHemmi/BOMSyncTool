@@ -8,3 +8,4 @@ export * from './project';
 export * from './dictionary';
 export * from './edit';
 export * from './preprocess';
+export * from './activity';

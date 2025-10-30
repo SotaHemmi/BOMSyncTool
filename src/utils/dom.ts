@@ -3,6 +3,7 @@
  */
 
 import type { DatasetKey } from '../types';
+import { appendActivityLog } from '../state/activity-log';
 
 /**
  * 処理中オーバーレイの表示/非表示
@@ -20,18 +21,7 @@ export function setProcessing(active: boolean, message = '処理中...') {
  * アクティビティログに追加
  */
 export function logActivity(message: string) {
-  const activityLog = document.getElementById('activity-log') as HTMLUListElement | null;
-  if (!activityLog) return;
-
-  const timestamp = new Date().toLocaleTimeString();
-  const entry = document.createElement('li');
-  entry.textContent = `[${timestamp}] ${message}`;
-  activityLog.prepend(entry);
-
-  // 古いログは見やすさのため20件までに抑える
-  while (activityLog.children.length > 20) {
-    activityLog.removeChild(activityLog.lastChild as ChildNode);
-  }
+  appendActivityLog(message);
 }
 
 /**

@@ -1,0 +1,95 @@
+/**
+ * Dropzone.tsx - ファイルドロップゾーンコンポーネント
+ *
+ * 元のコード参照: src/ui/dropzone.ts, src/ui/file-picker.ts
+ */
+
+import { useState } from 'react';
+import type { DatasetKey } from '../types';
+
+interface DropzoneProps {
+  dataset: DatasetKey;
+  onFileLoaded: (filePath: string, fileName: string) => void;
+  fileName: string | null;
+  status: string;
+}
+
+export function Dropzone({ dataset, onFileLoaded, fileName, status }: DropzoneProps) {
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    // TODO: Tauri APIを使ってドロップされたファイルを処理
+    // 元のコード: src/ui/dropzone.ts の handleFileDrop 参照
+  };
+
+  const handleFileSelect = async () => {
+    // TODO: Tauri dialog.open() を使ってファイル選択
+    // 元のコード: src/ui/file-picker.ts の registerFilePickerButtons 参照
+  };
+
+  return (
+    <div className="dropzone" data-target={dataset}>
+      <header className="dropzone-header">
+        <div className="dropzone-title">
+          <h2>BOM {dataset.toUpperCase()}</h2>
+          <button
+            type="button"
+            className="info-button"
+            aria-label={`BOM ${dataset.toUpperCase()}について`}
+            data-tooltip={`比較の${dataset === 'a' ? '基準となる既存BOM' : '対象となる新しいBOM'}を読み込みます`}
+          >
+            i
+          </button>
+        </div>
+        <span className="dropzone-status" data-status-placeholder={dataset}>
+          {status}
+        </span>
+      </header>
+
+      <div className="dropzone-body">
+        <div
+          className={`dropzone-surface ${isDragging ? 'dragover' : ''}`}
+          data-surface={dataset}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <div className="dropzone-placeholder" data-placeholder={dataset}>
+            <div className="dropzone-placeholder-icon">⇣</div>
+            <p>ここにファイルをドラッグ＆ドロップ</p>
+            <small>CSV / XLSX / CADネットリスト 対応</small>
+          </div>
+
+          {/* TODO: プレビュー表示 */}
+        </div>
+      </div>
+
+      <footer className="dropzone-footer">
+        <button
+          className="secondary-button"
+          data-select-target={dataset}
+          data-tooltip={`ファイルダイアログからBOM ${dataset.toUpperCase()}を読み込みます`}
+          onClick={handleFileSelect}
+        >
+          ファイルを選択
+        </button>
+      </footer>
+    </div>
+  );
+}

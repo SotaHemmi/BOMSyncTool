@@ -2,13 +2,12 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use crate::models::{AppError, BomRow, ColumnMeta, ParseError, ParseResult};
+use crate::models::{AppError, ColumnMeta, ParseError, ParseResult};
 
 /// CADネットリスト（PADS-ECO/MSF/CCF形式）をパース
 pub fn parse_cad_file(path: &Path) -> Result<ParseResult, AppError> {
-    let content = fs::read_to_string(path).map_err(|e| {
-        AppError::new(format!("ファイルの読み込みに失敗しました: {}", e))
-    })?;
+    let content = fs::read_to_string(path)
+        .map_err(|e| AppError::new(format!("ファイルの読み込みに失敗しました: {}", e)))?;
 
     // フォーマットを自動判定
     let format = detect_cad_format(&content)?;
@@ -59,8 +58,18 @@ fn detect_cad_format(content: &str) -> Result<CadFormat, AppError> {
 /// C12 0603B104K500CT
 /// IC8 74VHC08FT(BJ)
 /// *END*
+/// PADS-ECO形式をパース
+///
+/// # フォーマット例
+/// ```
+/// *PADS-ECO*
+/// *PART*
+/// C10 0603B104K500CT
+/// C12 0603B104K500CT
+/// IC8 74VHC08FT(BJ)
+/// *END*
+/// ```
 fn parse_pads_eco_format(content: &str) -> Result<ParseResult, AppError> {
-    let mut bom_data = Vec::new();
     let mut errors = Vec::new();
     let mut raw_rows = Vec::new();
     let mut in_part_section = false;
@@ -110,42 +119,63 @@ fn parse_pads_eco_format(content: &str) -> Result<ParseResult, AppError> {
 
         let ref_value = parts[0].to_string();
         let part_value = parts[1].to_string();
+        let value_col = if parts.len() > 2 {
+            parts[2].to_string()
+        } else {
+            String::new()
+        };
+        let comment_col = if parts.len() > 3 {
+            parts[3].to_string()
+        } else {
+            String::new()
+        };
 
-        bom_data.push(BomRow {
-            r#ref: ref_value.clone(),
-            part_no: part_value.clone(),
-            attributes: HashMap::new(),
-        });
-        raw_rows.push(vec![
-            ref_value,
-            part_value,
-            String::new(),
-            String::new(),
-        ]);
+        raw_rows.push(vec![ref_value, part_value, value_col, comment_col]);
     }
 
-    if bom_data.is_empty() {
+    if raw_rows.is_empty() {
         return Err(AppError::new(
             "有効な*PART*セクションが見つかりませんでした。".to_string(),
         ));
     }
 
-    let guessed_roles = HashMap::from([
-        ("col-0".to_string(), "ref".to_string()),
-        ("col-1".to_string(), "part_no".to_string()),
+    // 列役割マッピングを作成
+    let column_roles = HashMap::from([
+        ("ref".to_string(), vec!["col-0".to_string()]),
+        ("part_no".to_string(), vec!["col-1".to_string()]),
+        ("value".to_string(), vec!["col-2".to_string()]),
+        ("comment".to_string(), vec!["col-3".to_string()]),
     ]);
 
+    // 列の表示順序（ref → part_no → value → comment）
+    let column_order = vec![
+        "col-0".to_string(),
+        "col-1".to_string(),
+        "col-2".to_string(),
+        "col-3".to_string(),
+    ];
+
+    let row_count = raw_rows.len();
+
+    #[allow(deprecated)]
     Ok(ParseResult {
-        bom_data,
         rows: raw_rows,
+        column_roles,
+        column_order,
         guessed_columns: HashMap::from([
             ("ref".to_string(), 0),
             ("part_no".to_string(), 1),
             ("value".to_string(), 2),
             ("comment".to_string(), 3),
         ]),
-        guessed_roles,
-        errors: errors.iter().map(|e: &ParseError| e.message.clone()).collect(),
+        guessed_roles: HashMap::from([
+            ("col-0".to_string(), "ref".to_string()),
+            ("col-1".to_string(), "part_no".to_string()),
+        ]),
+        errors: errors
+            .iter()
+            .map(|e: &ParseError| e.message.clone())
+            .collect(),
         headers: vec![
             "Ref".to_string(),
             "Part No".to_string(),
@@ -170,7 +200,7 @@ fn parse_pads_eco_format(content: &str) -> Result<ParseResult, AppError> {
                 name: "Comment".to_string(),
             },
         ],
-        row_numbers: vec![],
+        row_numbers: (1..=row_count).collect(),
         structured_errors: Some(errors),
     })
 }
@@ -207,8 +237,14 @@ fn parse_ccf_definition_format(content: &str) -> Result<ParseResult, AppError> {
 }
 
 /// 逆引き構造（Part_No:Ref1,Ref2;）をパース
+///
+/// # 引数
+/// * `content` - ファイル内容
+/// * `section_name` - セクション名（"SHAPE" または "DEFINITION"）
+///
+/// # 戻り値
+/// パース結果
 fn parse_reverse_structure(content: &str, section_name: &str) -> Result<ParseResult, AppError> {
-    let mut bom_data = Vec::new();
     let mut raw_rows = Vec::new();
     let errors = Vec::new();
 
@@ -263,11 +299,6 @@ fn parse_reverse_structure(content: &str, section_name: &str) -> Result<ParseRes
                     let ref_value = ref_item.to_string();
                     let part_value = part_no.clone();
 
-                    bom_data.push(BomRow {
-                        r#ref: ref_value.clone(),
-                        part_no: part_value.clone(),
-                        attributes: HashMap::new(),
-                    });
                     raw_rows.push(vec![ref_value, part_value]);
                 }
             }
@@ -279,26 +310,37 @@ fn parse_reverse_structure(content: &str, section_name: &str) -> Result<ParseRes
         )));
     }
 
-    if bom_data.is_empty() {
+    if raw_rows.is_empty() {
         return Err(AppError::new(
             "有効なデータが見つかりませんでした。".to_string(),
         ));
     }
 
-    let guessed_roles = HashMap::from([
-        ("col-0".to_string(), "ref".to_string()),
-        ("col-1".to_string(), "part_no".to_string()),
+    // 列役割マッピングを作成
+    let column_roles = HashMap::from([
+        ("ref".to_string(), vec!["col-0".to_string()]),
+        ("part_no".to_string(), vec!["col-1".to_string()]),
     ]);
 
+    // 列の表示順序（ref → part_no）
+    let column_order = vec!["col-0".to_string(), "col-1".to_string()];
+
+    let row_count = raw_rows.len();
+
+    #[allow(deprecated)]
     Ok(ParseResult {
-        bom_data,
         rows: raw_rows,
-        guessed_columns: HashMap::from([
-            ("ref".to_string(), 0),
-            ("part_no".to_string(), 1),
+        column_roles,
+        column_order,
+        guessed_columns: HashMap::from([("ref".to_string(), 0), ("part_no".to_string(), 1)]),
+        guessed_roles: HashMap::from([
+            ("col-0".to_string(), "ref".to_string()),
+            ("col-1".to_string(), "part_no".to_string()),
         ]),
-        guessed_roles,
-        errors: errors.iter().map(|e: &ParseError| e.message.clone()).collect(),
+        errors: errors
+            .iter()
+            .map(|e: &ParseError| e.message.clone())
+            .collect(),
         headers: vec!["Ref".to_string(), "Part No".to_string()],
         columns: vec![
             ColumnMeta {
@@ -310,7 +352,7 @@ fn parse_reverse_structure(content: &str, section_name: &str) -> Result<ParseRes
                 name: "Part No".to_string(),
             },
         ],
-        row_numbers: vec![],
+        row_numbers: (1..=row_count).collect(),
         structured_errors: Some(errors),
     })
 }

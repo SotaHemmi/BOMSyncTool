@@ -1,0 +1,136 @@
+/**
+ * useProjects.ts - プロジェクト管理カスタムフック
+ *
+ * 元のコード参照: src/core/project-manager.ts
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import type { ProjectRecord } from '../types';
+import {
+  getStoredProjects,
+  saveStoredProjects,
+  loadActiveProjectId,
+  saveActiveProjectId,
+  getFavoriteProjects,
+  saveFavoriteProjects,
+} from '../utils';
+
+export function useProjects() {
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [favoriteProjects, setFavoriteProjects] = useState<Set<string>>(new Set());
+
+  // 初期化
+  useEffect(() => {
+    const stored = getStoredProjects();
+    const activeId = loadActiveProjectId();
+    const favorites = getFavoriteProjects();
+
+    setProjects(stored);
+    setActiveProjectId(activeId);
+    setFavoriteProjects(favorites);
+  }, []);
+
+  // プロジェクト作成
+  const createProject = useCallback(() => {
+    const newProject: ProjectRecord = {
+      id: `project-${Date.now()}`,
+      name: `プロジェクト ${projects.length + 1}`,
+      timestamp: Date.now(),
+      payload: {
+        datasetA: null,
+        datasetB: null,
+        dictionary: { registration: [], exception: [] },
+      },
+    };
+
+    const updated = [...projects, newProject];
+    setProjects(updated);
+    saveStoredProjects(updated);
+    setActiveProjectId(newProject.id);
+    saveActiveProjectId(newProject.id);
+
+    return newProject;
+  }, [projects]);
+
+  // プロジェクト読み込み
+  const loadProject = useCallback((projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+
+    setActiveProjectId(projectId);
+    saveActiveProjectId(projectId);
+
+    // TODO: datasetStateにデータを読み込む
+    // 元のコード: src/core/project-manager.ts の loadProject 参照
+  }, [projects]);
+
+  // プロジェクト保存
+  const saveProject = useCallback(() => {
+    // TODO: 現在のdatasetStateをprojectに保存
+    // 元のコード: src/core/project-manager.ts の autoSaveActiveProject 参照
+  }, [projects, activeProjectId]);
+
+  // プロジェクト削除
+  const deleteProject = useCallback((projectId: string) => {
+    const updated = projects.filter(p => p.id !== projectId);
+    setProjects(updated);
+    saveStoredProjects(updated);
+
+    // アクティブプロジェクトを削除した場合
+    if (projectId === activeProjectId) {
+      const nextProject = updated[0];
+      if (nextProject) {
+        loadProject(nextProject.id);
+      } else {
+        setActiveProjectId(null);
+        saveActiveProjectId(null);
+      }
+    }
+  }, [projects, activeProjectId, loadProject]);
+
+  // プロジェクトリネーム
+  const renameProject = useCallback((projectId: string, newName: string) => {
+    const updated = projects.map(p =>
+      p.id === projectId ? { ...p, name: newName } : p
+    );
+    setProjects(updated);
+    saveStoredProjects(updated);
+  }, [projects]);
+
+  // お気に入りトグル
+  const toggleFavorite = useCallback((projectId: string) => {
+    const newFavorites = new Set(favoriteProjects);
+    if (newFavorites.has(projectId)) {
+      newFavorites.delete(projectId);
+    } else {
+      newFavorites.add(projectId);
+    }
+    setFavoriteProjects(newFavorites);
+    saveFavoriteProjects(newFavorites);
+  }, [favoriteProjects]);
+
+  // 自動保存
+  const startAutoSave = useCallback(() => {
+    // TODO: setIntervalで定期的にsaveProject()を呼ぶ
+    // 元のコード: src/core/project-manager.ts の startAutoSaveTimer 参照
+  }, [saveProject]);
+
+  const stopAutoSave = useCallback(() => {
+    // TODO: clearInterval
+  }, []);
+
+  return {
+    projects,
+    activeProjectId,
+    favoriteProjects,
+    createProject,
+    loadProject,
+    saveProject,
+    deleteProject,
+    renameProject,
+    toggleFavorite,
+    startAutoSave,
+    stopAutoSave,
+  };
+}

@@ -14,6 +14,7 @@ import type {
 const PROJECT_STORAGE_KEY = 'bomsync_projects';
 const ACTIVE_PROJECT_KEY = 'bomsync_active_project';
 const FAVORITE_PROJECTS_KEY = 'bomsync_favorite_projects';
+const OPEN_TABS_KEY = 'bomsync_open_tabs';
 const PROJECT_SETTINGS_KEY = 'bomsync_project_settings';
 const DICTIONARY_REGISTRATIONS_KEY = 'dictionary_registrations';
 const DICTIONARY_EXCEPTIONS_KEY = 'dictionary_exceptions';
@@ -75,6 +76,20 @@ export function getFavoriteProjects(): Set<string> {
 
 export function saveFavoriteProjects(favorites: Set<string>) {
   localStorage.setItem(FAVORITE_PROJECTS_KEY, JSON.stringify(Array.from(favorites)));
+}
+
+export function getOpenTabs(): string[] {
+  const stored = localStorage.getItem(OPEN_TABS_KEY);
+  if (!stored) return [];
+  try {
+    return JSON.parse(stored) as string[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveOpenTabs(tabIds: string[]) {
+  localStorage.setItem(OPEN_TABS_KEY, JSON.stringify(tabIds));
 }
 
 /**

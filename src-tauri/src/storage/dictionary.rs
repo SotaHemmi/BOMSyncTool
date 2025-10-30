@@ -65,7 +65,10 @@ pub fn save_dictionary(
                 continue;
             }
             if !seen.insert(name.to_string()) {
-                return Err(AppError::new(format!("ルール名'{}'が重複しています。", name)));
+                return Err(AppError::new(format!(
+                    "ルール名'{}'が重複しています。",
+                    name
+                )));
             }
         }
     }

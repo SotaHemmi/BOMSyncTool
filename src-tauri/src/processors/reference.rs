@@ -1,39 +1,67 @@
-use crate::models::{AppError, BomRow};
+use std::collections::HashMap;
 
-pub fn expand_reference(rows: Vec<BomRow>) -> Result<Vec<BomRow>, AppError> {
-    let mut expanded = Vec::new();
+use crate::models::{AppError, ParseResult};
 
-    for row in rows {
-        let base_row = row;
-        let normalized = base_row.r#ref.replace(' ', "");
+/// Reference展開（C1-C5 → C1, C2, C3, C4, C5）
+///
+/// ParseResultの元データを操作し、範囲指定を展開します
+pub fn expand_reference(parse: &ParseResult) -> Result<ParseResult, AppError> {
+    let mut expanded_rows = Vec::new();
+
+    for (idx, row) in parse.rows.iter().enumerate() {
+        let ref_value = parse.get_ref(idx);
+        let normalized = ref_value.replace(' ', "");
 
         if let Some((prefix, start, end)) = parse_reference_range(&normalized) {
             if end < start {
                 return Err(AppError::new(format!(
                     "Refの範囲指定が不正です: {}",
-                    base_row.r#ref
+                    ref_value
                 )));
             }
 
+            // 範囲を展開
             for index in start..=end {
-                let mut new_row = base_row.clone();
-                new_row.r#ref = format!("{}{}", prefix, index);
-                expanded.push(new_row);
+                let mut new_row = row.clone();
+                // Reference列を更新
+                let ref_indices = parse.get_column_indices("ref");
+                for &col_idx in &ref_indices {
+                    if col_idx < new_row.len() {
+                        new_row[col_idx] = format!("{}{}", prefix, index);
+                    }
+                }
+                expanded_rows.push(new_row);
             }
         } else {
-            expanded.push(base_row);
+            expanded_rows.push(row.clone());
         }
     }
 
-    Ok(expanded)
+    let row_count = expanded_rows.len();
+
+    Ok(ParseResult {
+        rows: expanded_rows,
+        column_roles: parse.column_roles.clone(),
+        column_order: parse.column_order.clone(),
+        #[allow(deprecated)]
+        guessed_columns: HashMap::new(),
+        #[allow(deprecated)]
+        guessed_roles: HashMap::new(),
+        errors: vec![],
+        headers: parse.headers.clone(),
+        columns: parse.columns.clone(),
+        row_numbers: (1..=row_count).collect(),
+        structured_errors: None,
+    })
 }
 
-pub fn split_reference_rows(rows: Vec<BomRow>) -> Result<Vec<BomRow>, AppError> {
-    let mut result = Vec::new();
+/// Reference分割（"C1, C2, C3" → 3行に分割）
+pub fn split_reference_rows(parse: &ParseResult) -> Result<ParseResult, AppError> {
+    let mut result_rows = Vec::new();
 
-    for row in rows {
-        let references: Vec<String> = row
-            .r#ref
+    for (idx, row) in parse.rows.iter().enumerate() {
+        let ref_value = parse.get_ref(idx);
+        let references: Vec<String> = ref_value
             .split(',')
             .map(|part| part.trim())
             .filter(|part| !part.is_empty())
@@ -41,18 +69,39 @@ pub fn split_reference_rows(rows: Vec<BomRow>) -> Result<Vec<BomRow>, AppError> 
             .collect();
 
         if references.len() <= 1 {
-            result.push(row);
+            result_rows.push(row.clone());
             continue;
         }
 
-        for reference in references.iter() {
+        // 複数のReferenceに分割
+        for reference in references {
             let mut new_row = row.clone();
-            new_row.r#ref = reference.to_string();
-            result.push(new_row);
+            let ref_indices = parse.get_column_indices("ref");
+            for &col_idx in &ref_indices {
+                if col_idx < new_row.len() {
+                    new_row[col_idx] = reference.clone();
+                }
+            }
+            result_rows.push(new_row);
         }
     }
 
-    Ok(result)
+    let row_count = result_rows.len();
+
+    Ok(ParseResult {
+        rows: result_rows,
+        column_roles: parse.column_roles.clone(),
+        column_order: parse.column_order.clone(),
+        #[allow(deprecated)]
+        guessed_columns: HashMap::new(),
+        #[allow(deprecated)]
+        guessed_roles: HashMap::new(),
+        errors: vec![],
+        headers: parse.headers.clone(),
+        columns: parse.columns.clone(),
+        row_numbers: (1..=row_count).collect(),
+        structured_errors: None,
+    })
 }
 
 fn parse_reference_range(reference: &str) -> Option<(String, u32, u32)> {

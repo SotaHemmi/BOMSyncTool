@@ -1,49 +1,66 @@
 use std::collections::HashMap;
 
-use crate::models::{AppError, BomRow};
+use crate::models::{AppError, ParseResult};
 use crate::utils::text::cleanse_string;
 
-pub fn fill_blank_cells(mut rows: Vec<BomRow>) -> Result<Vec<BomRow>, AppError> {
-    let mut prev_part_no: Option<String> = None;
-    let mut prev_attributes: HashMap<String, String> = HashMap::new();
+/// 空白セルを前の行の値で埋める
+pub fn fill_blank_cells(parse: &ParseResult) -> Result<ParseResult, AppError> {
+    let mut filled_rows = Vec::new();
+    let mut prev_row: Option<Vec<String>> = None;
 
-    for row in rows.iter_mut() {
-        if row.part_no.trim().is_empty() {
-            if let Some(prev) = &prev_part_no {
-                row.part_no = prev.clone();
-            }
-        } else {
-            prev_part_no = Some(row.part_no.clone());
-        }
+    for row in &parse.rows {
+        let mut new_row = row.clone();
 
-        let attribute_keys: Vec<String> = row.attributes.keys().cloned().collect();
-        for key in attribute_keys {
-            if let Some(value) = row.attributes.get(&key).cloned() {
-                if value.trim().is_empty() {
-                    if let Some(prev) = prev_attributes.get(&key) {
-                        row.attributes.insert(key.clone(), prev.clone());
+        if let Some(prev) = &prev_row {
+            for (col_idx, cell) in new_row.iter_mut().enumerate() {
+                if cell.trim().is_empty() {
+                    if let Some(prev_cell) = prev.get(col_idx) {
+                        *cell = prev_cell.clone();
                     }
-                } else {
-                    prev_attributes.insert(key.clone(), value);
                 }
             }
         }
+
+        prev_row = Some(new_row.clone());
+        filled_rows.push(new_row);
     }
 
-    Ok(rows)
+    Ok(ParseResult {
+        rows: filled_rows,
+        column_roles: parse.column_roles.clone(),
+        column_order: parse.column_order.clone(),
+        #[allow(deprecated)]
+        guessed_columns: HashMap::new(),
+        #[allow(deprecated)]
+        guessed_roles: HashMap::new(),
+        errors: vec![],
+        headers: parse.headers.clone(),
+        columns: parse.columns.clone(),
+        row_numbers: parse.row_numbers.clone(),
+        structured_errors: None,
+    })
 }
 
-pub fn cleanse_text_data(bom: Vec<BomRow>) -> Vec<BomRow> {
-    bom.into_iter()
-        .map(|mut row| {
-            row.r#ref = cleanse_string(&row.r#ref);
-            row.part_no = cleanse_string(&row.part_no);
-            row.attributes = row
-                .attributes
-                .into_iter()
-                .map(|(key, value)| (key, cleanse_string(&value)))
-                .collect();
-            row
-        })
-        .collect()
+/// テキストデータをクレンジング（不要な空白・特殊文字を削除）
+pub fn cleanse_text_data(parse: &ParseResult) -> ParseResult {
+    let cleansed_rows: Vec<Vec<String>> = parse
+        .rows
+        .iter()
+        .map(|row| row.iter().map(|cell| cleanse_string(cell)).collect())
+        .collect();
+
+    ParseResult {
+        rows: cleansed_rows,
+        column_roles: parse.column_roles.clone(),
+        column_order: parse.column_order.clone(),
+        #[allow(deprecated)]
+        guessed_columns: HashMap::new(),
+        #[allow(deprecated)]
+        guessed_roles: HashMap::new(),
+        errors: vec![],
+        headers: parse.headers.clone(),
+        columns: parse.columns.clone(),
+        row_numbers: parse.row_numbers.clone(),
+        structured_errors: None,
+    }
 }

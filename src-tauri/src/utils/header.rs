@@ -32,7 +32,8 @@ pub fn matches_ref_header(normalized: &str) -> bool {
     }
 
     // 日本語パターン
-    if normalized.contains("部品番号") || normalized.contains("部番") || normalized.contains("参照") {
+    if normalized.contains("部品番号") || normalized.contains("部番") || normalized.contains("参照")
+    {
         return true;
     }
 
@@ -58,7 +59,9 @@ pub fn matches_part_no_header(normalized: &str) -> bool {
 
     // 部分一致パターン（より厳密に）
     // "name" は誤判定が多いので、より厳密にチェック
-    if (normalized.contains("partno") || normalized.contains("partnumber") || normalized.contains("part"))
+    if (normalized.contains("partno")
+        || normalized.contains("partnumber")
+        || normalized.contains("part"))
         && !normalized.contains("manufacturer")
         && !normalized.contains("メーカー")
     {
@@ -120,12 +123,16 @@ pub fn matches_comment_header(normalized: &str) -> bool {
     }
 
     // 部分一致パターン
-    if normalized.contains("comment") || normalized.contains("remark") || normalized.contains("note") {
+    if normalized.contains("comment")
+        || normalized.contains("remark")
+        || normalized.contains("note")
+    {
         return true;
     }
 
     // 日本語パターン
-    if normalized.contains("コメント") || normalized.contains("備考") || normalized.contains("注記") {
+    if normalized.contains("コメント") || normalized.contains("備考") || normalized.contains("注記")
+    {
         return true;
     }
 
@@ -149,12 +156,16 @@ pub fn matches_manufacturer_header(normalized: &str) -> bool {
     }
 
     // 部分一致パターン
-    if normalized.contains("manufacturer") || normalized.contains("maker") || normalized.contains("vendor") {
+    if normalized.contains("manufacturer")
+        || normalized.contains("maker")
+        || normalized.contains("vendor")
+    {
         return true;
     }
 
     // 日本語パターン
-    if normalized.contains("メーカー") || normalized.contains("製造") || normalized.contains("供給") {
+    if normalized.contains("メーカー") || normalized.contains("製造") || normalized.contains("供給")
+    {
         return true;
     }
 

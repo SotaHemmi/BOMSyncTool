@@ -1,85 +1,64 @@
+use super::diff_comment;
+use crate::models::{AppError, ParseResult};
 use std::collections::HashMap;
 
-use crate::models::{AppError, BomRow};
-
-use super::diff_comment;
-
+/// PADS-ECO形式でエクスポート
 pub fn export_eco(
-    rows: &[BomRow],
+    parse: &ParseResult,
     diff_map: &HashMap<String, String>,
     include_comments: bool,
 ) -> Result<String, AppError> {
-    let mut lines = Vec::new();
-    for row in rows {
-        let value = row.attributes.get("value").cloned().unwrap_or_default();
-        let mut line = format!("ADD {} {} {}", row.r#ref, row.part_no, value);
+    let mut lines = vec!["*PADS-ECO*".to_string(), "*PART*".to_string()];
+
+    for (idx, _) in parse.rows.iter().enumerate() {
+        let ref_value = parse.get_ref(idx);
+        let part_no = parse.get_part_no(idx);
+
+        let mut line = format!("{} {}", ref_value, part_no);
         if include_comments {
-            let comment = diff_comment(row, diff_map);
+            let comment = diff_comment(&ref_value, diff_map);
             if !comment.is_empty() {
-                line.push(' ');
-                line.push_str(&comment);
+                line.push_str(&format!(" {}", comment));
             }
         }
         lines.push(line);
     }
 
+    lines.push("*END*".to_string());
     Ok(lines.join("\n"))
 }
 
+/// CCF形式でエクスポート
 pub fn export_ccf(
-    rows: &[BomRow],
+    parse: &ParseResult,
     diff_map: &HashMap<String, String>,
     include_comments: bool,
 ) -> Result<String, AppError> {
     let mut lines = Vec::new();
-    for row in rows {
-        let value = row.attributes.get("value").cloned().unwrap_or_default();
-        let comment = row.attributes.get("comment").cloned().unwrap_or_default();
-        let mut line = format!(
-            "REF={},PART={},VALUE={},COMMENT={}",
-            row.r#ref, row.part_no, value, comment
-        );
-        if include_comments {
-            let diff_cmt = diff_comment(row, diff_map);
-            if !diff_cmt.is_empty() {
-                line.push(' ');
-                line.push_str(&diff_cmt);
-            }
-        }
-        lines.push(line);
-    }
 
-    Ok(lines.join("\r\n"))
-}
+    for (idx, _) in parse.rows.iter().enumerate() {
+        let ref_value = parse.get_ref(idx);
+        let part_no = parse.get_part_no(idx);
 
-pub fn export_msf(
-    rows: &[BomRow],
-    diff_map: &HashMap<String, String>,
-    include_comments: bool,
-) -> Result<String, AppError> {
-    let mut lines = Vec::new();
-    for row in rows {
-        let value = row.attributes.get("value").cloned().unwrap_or_default();
-        let comment = row.attributes.get("comment").cloned().unwrap_or_default();
-        let mut parts = vec![row.r#ref.clone(), row.part_no.clone(), value];
-        let manufacturer = row
-            .attributes
-            .get("メーカー")
-            .or_else(|| row.attributes.get("Manufacturer"))
-            .cloned()
-            .unwrap_or_default();
-        parts.push(manufacturer);
-        parts.push(comment);
-        let mut line = parts.join("|");
+        let mut line = format!("{}:{};", part_no, ref_value);
         if include_comments {
-            let diff_cmt = diff_comment(row, diff_map);
-            if !diff_cmt.is_empty() {
-                line.push('|');
-                line.push_str(&diff_cmt);
+            let comment = diff_comment(&ref_value, diff_map);
+            if !comment.is_empty() {
+                line.push_str(&format!(" {}", comment));
             }
         }
         lines.push(line);
     }
 
     Ok(lines.join("\n"))
+}
+
+/// MSF形式でエクスポート
+pub fn export_msf(
+    parse: &ParseResult,
+    diff_map: &HashMap<String, String>,
+    include_comments: bool,
+) -> Result<String, AppError> {
+    // MSF形式はCCFと同じ構造
+    export_ccf(parse, diff_map, include_comments)
 }

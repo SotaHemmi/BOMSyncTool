@@ -1,7 +1,10 @@
 /// 括弧を削除し、全角文字を半角に変換する
 pub fn cleanse_string(input: &str) -> String {
     let without_parentheses = input.replace(['(', ')', '（', '）'], "");
-    without_parentheses.chars().map(fullwidth_to_halfwidth).collect()
+    without_parentheses
+        .chars()
+        .map(fullwidth_to_halfwidth)
+        .collect()
 }
 
 /// 全角文字を半角に変換

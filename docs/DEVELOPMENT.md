@@ -71,9 +71,9 @@ Tauri 2では Webview 側から利用するネイティブ API ごとに権限�
 3. 「Run workflow」を押す（ブランチ指定が必要なら選択）
 4. 実行完了後、Artifacts から `bomsynctool-windows` をダウンロード（MSI / NSIS などの成果物を含む）
 
-継続的にリリースへ組み込みたい場合は、`on.push.tags` などのトリガーを追加して運用してください。証明書で署名する場合は、`secrets` に証明書情報を登録し、ワークフローへ署名ステップを追記すると便利です。
+継続的にリリースへ組み込みたい場合は、`on.push.tags` などのトリガーを追加して運用してください。証明書で署名する場合は、`secrets` に証明書情報を登録し、ワークフローへ署名ステップを追記すると便利です。npm の optional dependency バグを避けるため、CI では Bun で依存を解決した後に Rust 製の `cargo tauri` CLI を用いてビルドしています（`cargo install --locked tauri-cli` → `cargo tauri build --bundles windows`）。
 
-> **補足**: `npm` には Tauri CLI のネイティブバイナリを optional dependency として解決できない既知の不具合（npm/cli#4828）があるため、ワークフロー内で `@tauri-apps/cli-win32-x64-msvc` を追加インストールして回避しています。ローカルで同様の症状が出る場合も `npm install @tauri-apps/cli-win32-x64-msvc --no-save` を試してください。
+> **補足**: npm には Tauri CLI のネイティブバイナリを optional dependency として解決できない既知の不具合（npm/cli#4828）があるため、CI では Node 製 CLI を介さず `cargo tauri` を実行しています。ローカルで npm 経由のビルドが失敗する場合は、`cargo install --locked tauri-cli` で Rust CLI を導入し `cargo tauri build` を使用するか、`npm install @tauri-apps/cli-win32-x64-msvc --no-save` を併用してください。
 
 ## 📁 プロジェクト構造の理解
 

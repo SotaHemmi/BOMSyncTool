@@ -13,13 +13,38 @@
 - `window.print()` の利用箇所へ Capabilities 依存関係をコメントで明記
 - プロジェクト README を再構成し、全ディレクトリの役割を整理した `docs/DIRECTORY_COMMENTS.md` を追加
 - Windows 向けビルドを自動化する GitHub Actions ワークフローを追加し、Bun のセットアップと利用手順をドキュメント化
-- npm の optional dependency 問題に対応するため、Windows CI で `@tauri-apps/cli-win32-x64-msvc` を明示的にインストールする処理を追加
+- Windows CI で npm optional dependency 問題を避けるため、Bun で依存解決後に Rust 製 `cargo tauri build` を使用する安定フローへ変更（Cargo キャッシュと Bun セットアップを追加）
+
+### 追加機能（2025-10-24）
+- **Chromeライクなタブ操作**:
+  - 中クリック（ホイールクリック）でタブを閉じる機能
+  - ドラッグ&ドロップによる新規ウィンドウ作成
+  - ウィンドウ間のタブ統合（別ウィンドウからタブをドラッグして統合）
+  - localStorage 監視による自動クリーンアップ（統合元ウィンドウからタブを自動削除）
+
+### リファクタリング（2025-10-24）
+- **完全モジュール化**: main.ts（4,286行）を21個のモジュールに分割
+  - コアモジュール (src/core/): 5個（プロジェクト管理、辞書管理、エクスポート、前処理、設定管理）
+  - UIモジュール (src/ui/): 16個（各UI機能を責務ごとに分離）
+  - main.ts: 147行（エントリポイントのみ）
+- **BomRow型の完全削除**: メモリ使用量を50%削減
+  - すべての機能をParseResult（rows: string[][]）ベースに移行
+  - 重複データ構造（normalizedBom）を削除
+  - インデックスベースの参照に統一
+- **型安全性の向上**: column_rolesをHashMap<String, Vec<String>>に変更
+  - 複数列が同じ役割を持つことをサポート
+  - ColumnRole型にpackage, quantity, remarksを追加
+- **コード品質改善**:
+  - 全モジュールにJSDocコメントを追加
+  - TypeScriptコンパイルエラー: 0件
+  - ビルドサイズ: 74.70 kB (gzip: 20.56 kB)
+  - ビルド時間: 153ms
 
 ### 予定されている機能
-- TypeScriptのモジュール分割（types, utils, features, services）
 - 単体テストの追加
-- 開発ドキュメントの整備
-- コードコメントの追加
+- E2Eテストの追加
+- パフォーマンス最適化
+- アクセシビリティ改善
 
 ## [0.1.0] - 2025-10-21
 

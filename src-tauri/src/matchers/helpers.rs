@@ -1,7 +1,16 @@
-use crate::models::{BomRow, MasterCondition};
+use crate::models::{MasterCondition, ParseResult};
 
-pub fn condition_matches(row: &BomRow, condition: &MasterCondition) -> bool {
-    let target_value = match get_field_value(row, &condition.field) {
+/// 条件が行にマッチするかチェック
+///
+/// # 引数
+/// * `parse` - BOMデータ
+/// * `row_idx` - 行インデックス
+/// * `condition` - マッチング条件
+///
+/// # 戻り値
+/// マッチする場合true
+pub fn condition_matches(parse: &ParseResult, row_idx: usize, condition: &MasterCondition) -> bool {
+    let target_value = match get_field_value(parse, row_idx, &condition.field) {
         Some(value) => value,
         None => return false,
     };
@@ -9,15 +18,63 @@ pub fn condition_matches(row: &BomRow, condition: &MasterCondition) -> bool {
     value_matches(&target_value, &condition.value, &condition.match_type)
 }
 
-fn get_field_value(row: &BomRow, field: &str) -> Option<String> {
+/// 指定したフィールドの値を取得
+///
+/// # 引数
+/// * `parse` - BOMデータ
+/// * `row_idx` - 行インデックス
+/// * `field` - フィールド名（"ref", "part_no", または列名）
+///
+/// # 戻り値
+/// フィールドの値（見つからない場合はNone）
+fn get_field_value(parse: &ParseResult, row_idx: usize, field: &str) -> Option<String> {
     let normalized = field.trim().to_lowercase();
+
+    // 標準的な役割名でチェック
     match normalized.as_str() {
-        "ref" | "reference" => Some(row.r#ref.clone()),
-        "part_no" | "partno" | "partnumber" | "部品型番" => Some(row.part_no.clone()),
-        other => {
-            for (key, value) in &row.attributes {
-                if key.to_lowercase() == other {
-                    return Some(value.clone());
+        "ref" | "reference" => {
+            let ref_value = parse.get_ref(row_idx);
+            if ref_value.is_empty() {
+                None
+            } else {
+                Some(ref_value)
+            }
+        }
+        "part_no" | "partno" | "partnumber" | "部品型番" => {
+            let part_no = parse.get_part_no(row_idx);
+            if part_no.is_empty() {
+                None
+            } else {
+                Some(part_no)
+            }
+        }
+        "manufacturer" | "メーカー" => {
+            let mfr = parse.get_manufacturer(row_idx);
+            if mfr.is_empty() {
+                None
+            } else {
+                Some(mfr)
+            }
+        }
+        "value" | "値" => {
+            let value = parse.get_value(row_idx);
+            if value.is_empty() {
+                None
+            } else {
+                Some(value)
+            }
+        }
+        _ => {
+            // その他のフィールド名は列名として扱う
+            // ヘッダーから該当する列を探す
+            let row = parse.rows.get(row_idx)?;
+            for (col_idx, header) in parse.headers.iter().enumerate() {
+                if header.to_lowercase() == normalized {
+                    if let Some(value) = row.get(col_idx) {
+                        if !value.trim().is_empty() {
+                            return Some(value.clone());
+                        }
+                    }
                 }
             }
             None
