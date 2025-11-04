@@ -411,8 +411,8 @@ ls -lh src-tauri/target/release/bundle/
 
 # 3. コミット
 git add .
-git commit -m "chore: release v0.39.0"
-git tag v0.39.0
+git commit -m "chore: release v0.4.1"
+git tag v0.4.1
 
 # 4. プッシュ
 git push origin main --tags
