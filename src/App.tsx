@@ -777,8 +777,8 @@ function App() {
         <div className="brand">
           <h1>
             BOMSyncTool
-            <span className="brand-version" aria-label="version 0.3.1">
-              v0.3.1
+            <span className="brand-version" aria-label="version 0.4.1">
+              v0.4.1
             </span>
           </h1>
         </div>
@@ -836,6 +836,7 @@ function App() {
         <ProjectPanel
           projects={projects.projects}
           favorites={projects.favoriteProjects}
+          favoriteArchive={projects.favoriteArchive}
           activeProjectId={projects.activeProjectId}
           onProjectClick={handleProjectTabChange}
           onToggleFavorite={projects.toggleFavorite}
