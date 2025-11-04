@@ -7,16 +7,35 @@
 
 ## [Unreleased]
 
+（次回リリース候補の変更は未確定です）
+
+## [0.40.0] - 2025-11-04
+
 ### 変更
 - 自動保存機能を完全廃止し、設定画面から自動保存関連の入力（間隔・保持数）を削除
-- 列役割の手動設定時にヘッダー名を役割名へ置き換え、Reference/Part_No/Manufacturer/その他の順で表示するよう調整
-- BOM読み込み時の列検出を刷新し、複数候補や開始行判定失敗時に警告を返すようRustパーサーを強化
-- 印刷機能を利用できるようメインウィンドウの capability に `core:webview:allow-print` を追加
-- README と開発ドキュメントに Tauri Capabilities 設定と印刷手順を追記
-- `window.print()` の利用箇所へ Capabilities 依存関係をコメントで明記
+- BOM 読み込み時の列検出ロジックを刷新し、Reference / Part_No / Manufacturer 列を複数行サンプルから推測。複数候補や開始行判定失敗時は「編集モードで指定してください」警告を返すよう変更
+- 列役割の手動指定時にヘッダーラベルを役割名へ置き換え、Reference → Part_No → Manufacturer → その他の順でカラムを並べ替えるよう統一
+- BOM A / BOM B それぞれのカードから PADS-ECO / CCF / MSF を個別にエクスポートできるよう UI を拡張し、比較結果のエクスポートグループを整理
+- CAD エクスポート（CCF / MSF）を品番ごとのグルーピング出力に変更し、差分コメントの付与可否を統一
+- スタイルシートと比較ビューを調整し、新しいエクスポート操作に合わせたボタンレイアウト・余白を適用
+- 印刷機能を利用できるようメインウィンドウの capability に `core:webview:allow-print` を追加し、対応手順をドキュメントへ反映
 - プロジェクト README を再構成し、全ディレクトリの役割を整理した `docs/DIRECTORY_COMMENTS.md` を追加
-- Windows 向けビルドを自動化する GitHub Actions ワークフローを追加し、Bun のセットアップと利用手順をドキュメント化
-- Windows CI で npm optional dependency 問題を避けるため、Bun で依存解決後に Rust 製 `cargo tauri build` を使用する安定フローへ変更（Cargo キャッシュと Bun セットアップを追加）
+- Windows 向けビルドを自動化する GitHub Actions ワークフローを追加し、Bun のセットアップと利用手順をドキュメント化（npm optional dependency 問題を回避）
+
+### 技術的詳細
+- `src-hooks/useBOMData.ts`: 列役割マッピングに基づき `column_order` と `headers`/`columns` を正規化、役割変更時にも同処理を再適用
+- `src-tauri/src/parsers/builder.rs`: データ開始行推測・複数候補警告・品番/メーカー列検出強化、Reference/Part_No/Manufacturer の警告を「編集モードで指定してください」で統一
+- `src/components/BOMCompare.tsx`, `src/core/export-handler.ts`, `src-tauri/src/exporters/cad.rs`, `src/styles.css`: 各種エクスポート導線、CAD 出力フォーマット、UI レイアウトをアップデート
+- `src/components/SettingsModal.tsx`: 自動保存関連の入力コントロールを削除
+- `src/App.tsx`: アプリケーションヘッダーのバージョン表示を更新し、BOM カードのエクスポート操作を追加
+- バージョン情報を `package.json` / `package-lock.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json` / `README.md` 等で `v0.40.0` に更新
+- `CHANGELOG.md` / `docs/DEVELOPMENT.md` などドキュメントを v0.40.0 向けに調整
+
+## [0.39.0] - 2025-11-04
+
+### 改善
+- お気に入りタブを削除してもグレーアウト表示で一覧に残し、クリックするだけで復元できるように改善。復元用スナップショットを localStorage にアーカイブし、保存・リネーム時にも最新状態を記録します。
+- BOM エクスポートの「出力」ボタンをプライマリボタンと同じカラーリングに合わせ、ホバー時／無効化時の視覚表現を統一。
 
 ## [0.3.1] - 2025-10-30
 
@@ -80,6 +99,7 @@
 - E2Eテストの追加
 - パフォーマンス最適化
 - アクセシビリティ改善
+- IPC登録名を自動適用する `apply_ipc_names` コマンドのフロント連携（辞書・BOM 編集に統合予定）
 
 ## [0.1.0] - 2025-10-21
 

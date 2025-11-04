@@ -1,6 +1,6 @@
 # BOMSyncTool
 
-![Version](https://img.shields.io/badge/version-0.10.0-blue)
+![Version](https://img.shields.io/badge/version-0.39.0-blue)
 ![License](https://img.shields.io/badge/license-未設定-lightgrey)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
@@ -91,7 +91,7 @@ npm run tauri build
 ### バックエンド (`src-tauri/`)
 
 - `Cargo.toml` / `Cargo.lock` — Rust 側の依存設定。
-- `tauri.conf.json` — アプリ全体のメタ設定（バージョン 0.10.0、ビルドコマンドなど）。
+- `tauri.conf.json` — アプリ全体のメタ設定（バージョン 0.39.0、ビルドコマンドなど）。
 - `capabilities/` — Webview ごとの権限宣言。`default.json` に印刷権限を追加済み。
 - `gen/schemas/` — Tauri CLI が生成した各プラットフォーム向けスキーマ定義。
 - `icons/` — macOS / Windows で使用するアイコンセット。
@@ -145,6 +145,12 @@ npm run tauri build
 - TypeScript: <https://www.typescriptlang.org/docs/>
 - Rust: <https://doc.rust-lang.org/book/>
 - Vite: <https://vitejs.dev/guide/>
+
+---
+
+## 🔮 今後の計画
+
+- `apply_ipc_names` コマンドをフロント側に統合し、辞書で管理する IPC 登録名を BOM 編集・比較フローに自動適用できるようにする（検討中）
 
 ---
 
