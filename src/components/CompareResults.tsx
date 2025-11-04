@@ -1,6 +1,6 @@
 import { useMemo, type CSSProperties } from 'react';
 import type { DiffRow, ParseResult } from '../types';
-import { getPartNo } from '../utils/bom';
+import { getPartNo, getColumnIndexById } from '../utils/bom';
 import { deriveColumns } from './DatasetCard';
 import {
   ResultsFilter,
@@ -77,16 +77,9 @@ function mapChangedColumns(
 
 function buildColumnIndexMap(columns: { id: string; name: string }[], parseResult: ParseResult): Map<string, number> {
   const map = new Map<string, number>();
-  const ordered = parseResult.column_order ?? [];
-  ordered.forEach((id, index) => {
-    if (!map.has(id)) {
-      map.set(id, index);
-    }
-  });
   columns.forEach((column, index) => {
-    if (!map.has(column.id)) {
-      map.set(column.id, index);
-    }
+    const resolvedIndex = getColumnIndexById(parseResult, column.id);
+    map.set(column.id, resolvedIndex >= 0 ? resolvedIndex : index);
   });
   return map;
 }

@@ -26,6 +26,33 @@ import { exportToCSV, exportToECO, exportToCCF, exportToMSF, type ExportSource }
 import { saveProject } from '../core/project-manager';
 import { setProcessing, logActivity } from '../utils';
 
+type NormalizedStatus = 'added' | 'removed' | 'modified' | 'unchanged' | 'other';
+
+const STATUS_NORMALIZE_MAP: Record<string, NormalizedStatus> = {
+  added: 'added',
+  '追加': 'added',
+  removed: 'removed',
+  '削除': 'removed',
+  delete: 'removed',
+  deleted: 'removed',
+  modified: 'modified',
+  modify: 'modified',
+  change: 'modified',
+  changed: 'modified',
+  diff: 'modified',
+  '変更': 'modified',
+  unchanged: 'unchanged',
+  same: 'unchanged',
+  identical: 'unchanged',
+  '同一': 'unchanged'
+};
+
+function normalizeStatus(status: string | undefined | null): NormalizedStatus {
+  if (!status) return 'other';
+  const key = status.toLowerCase();
+  return STATUS_NORMALIZE_MAP[key] ?? 'other';
+}
+
 /**
  * ファイル選択ダイアログを開く
  *
@@ -89,12 +116,29 @@ export async function runComparison(): Promise<void> {
     const diffs = await compareBoms(parseA, parseB);
     setCurrentDiffs(diffs);
 
-    const added = diffs.filter(d => d.status === '追加').length;
-    const removed = diffs.filter(d => d.status === '削除').length;
-    const changed = diffs.filter(d => d.status === '変更').length;
-    const total = added + removed + changed;
+    let added = 0;
+    let removed = 0;
+    let modified = 0;
 
-    updateResultsSummary(`差分: ${total}件（追加 ${added}、削除 ${removed}、変更 ${changed}）`);
+    diffs.forEach(diff => {
+      switch (normalizeStatus(diff.status)) {
+        case 'added':
+          added += 1;
+          break;
+        case 'removed':
+          removed += 1;
+          break;
+        case 'modified':
+          modified += 1;
+          break;
+        default:
+          break;
+      }
+    });
+
+    const total = added + removed + modified;
+
+    updateResultsSummary(`差分: ${total}件（追加 ${added}、削除 ${removed}、変更 ${modified}）`);
     renderDiffTable(diffs);
 
     logActivity(`比較完了: 差分 ${total}件`);

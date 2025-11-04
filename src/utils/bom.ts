@@ -24,6 +24,41 @@ export function getColumnIndices(parseResult: ParseResult, role: string): number
 }
 
 /**
+ * 列IDから元データ上の列インデックスを解決
+ *
+ * @param parseResult - パース結果
+ * @param columnId - 列ID（例: "col-0", "status"）
+ * @returns 対応する列インデックス（見つからない場合は -1）
+ */
+export function getColumnIndexById(parseResult: ParseResult, columnId: string): number {
+  if (!columnId) {
+    return -1;
+  }
+
+  const match = columnId.match(/^col-(\d+)$/);
+  if (match) {
+    const numericIndex = Number(match[1]);
+    if (Number.isFinite(numericIndex)) {
+      return numericIndex;
+    }
+  }
+
+  const order = parseResult.column_order ?? [];
+  const orderIndex = order.indexOf(columnId);
+  if (orderIndex >= 0) {
+    return orderIndex;
+  }
+
+  const columns = parseResult.columns ?? [];
+  const metaIndex = columns.findIndex(column => column.id === columnId);
+  if (metaIndex >= 0) {
+    return metaIndex;
+  }
+
+  return -1;
+}
+
+/**
  * 指定した行と役割の値を取得（複数列の場合は最初の非空値）
  *
  * @param parseResult - パース結果

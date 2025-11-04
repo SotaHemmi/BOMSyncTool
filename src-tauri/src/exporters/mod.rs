@@ -37,10 +37,10 @@ pub fn export_bom_file(
 pub fn diff_comment(ref_value: &str, diff_map: &HashMap<String, String>) -> String {
     if let Some(status) = diff_map.get(ref_value) {
         match status.as_str() {
-            "追加" => "←追加".to_string(),
-            "削除" => "←削除".to_string(),
-            "変更" => "←変更".to_string(),
-            "同一" => String::new(),
+            "added" | "追加" => "←追加".to_string(),
+            "removed" | "削除" => "←削除".to_string(),
+            "modified" | "変更" => "←変更".to_string(),
+            "unchanged" | "同一" => String::new(),
             other => format!("←{}", other),
         }
     } else {

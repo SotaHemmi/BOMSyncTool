@@ -10,6 +10,33 @@ import { compareBoms, updateAndAppendBoms } from '../services';
 import { setProcessing, logActivity } from '../utils';
 import { renderDiffTable } from './diff-view';
 
+type NormalizedStatus = 'added' | 'removed' | 'modified' | 'unchanged' | 'other';
+
+const STATUS_NORMALIZE_MAP: Record<string, NormalizedStatus> = {
+  added: 'added',
+  '追加': 'added',
+  removed: 'removed',
+  '削除': 'removed',
+  delete: 'removed',
+  deleted: 'removed',
+  modified: 'modified',
+  modify: 'modified',
+  change: 'modified',
+  changed: 'modified',
+  diff: 'modified',
+  '変更': 'modified',
+  unchanged: 'unchanged',
+  same: 'unchanged',
+  identical: 'unchanged',
+  '同一': 'unchanged'
+};
+
+function normalizeStatus(status: string | undefined | null): NormalizedStatus {
+  if (!status) return 'other';
+  const key = status.toLowerCase();
+  return STATUS_NORMALIZE_MAP[key] ?? 'other';
+}
+
 /**
  * BOM比較を実行
  */
@@ -32,14 +59,31 @@ export async function runCompare(): Promise<void> {
     renderDiffTable(diffs);
 
     // 結果サマリーを更新
-    const added = diffs.filter(d => d.status === '追加').length;
-    const removed = diffs.filter(d => d.status === '削除').length;
-    const changed = diffs.filter(d => d.status === '変更').length;
-    const total = added + removed + changed;
+    let added = 0;
+    let removed = 0;
+    let modified = 0;
+
+    diffs.forEach(diff => {
+      switch (normalizeStatus(diff.status)) {
+        case 'added':
+          added += 1;
+          break;
+        case 'removed':
+          removed += 1;
+          break;
+        case 'modified':
+          modified += 1;
+          break;
+        default:
+          break;
+      }
+    });
+
+    const total = added + removed + modified;
 
     const resultsSummary = document.getElementById('results-summary');
     if (resultsSummary) {
-      resultsSummary.textContent = `差分: ${total}件（追加 ${added}、削除 ${removed}、変更 ${changed}）`;
+      resultsSummary.textContent = `差分: ${total}件（追加 ${added}、削除 ${removed}、変更 ${modified}）`;
     }
 
     // 結果パネルを表示

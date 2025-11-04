@@ -13,6 +13,10 @@ import {
   sanitizeAutoInterval,
   sanitizeAutoCount
 } from '../core/project-manager';
+import {
+  generateThemeFromKey,
+  applyThemeVariables as applyThemeVars
+} from '../utils/theme';
 
 const DEFAULT_THEME: ThemeColors = {
   primary: '#3f8fc0',
@@ -20,11 +24,9 @@ const DEFAULT_THEME: ThemeColors = {
   danger: '#d95d5d'
 };
 
+// 互換性のため、既存のapplyThemeVariablesも残す
 function applyThemeVariables(colors: ThemeColors) {
-  if (typeof document === 'undefined') return;
-  document.documentElement.style.setProperty('--color-primary', colors.primary);
-  document.documentElement.style.setProperty('--color-secondary', colors.secondary);
-  document.documentElement.style.setProperty('--color-danger', colors.danger);
+  applyThemeVars(colors);
 }
 
 const DEFAULT_PREPROCESS_TEMPLATE = DEFAULT_PROJECT_SETTINGS.defaultPreprocess ?? {
@@ -115,6 +117,14 @@ export function useSettings(): UseSettingsResult {
 
   const updateTheme = useCallback((partial: Partial<ThemeColors>) => {
     setTheme(prev => {
+      // primaryが変更された場合、全体のパレットを自動生成
+      if (partial.primary && partial.primary !== prev.primary) {
+        const generated = generateThemeFromKey(partial.primary);
+        saveThemeSettings(generated);
+        return generated;
+      }
+
+      // 互換性: partial に secondary や danger が指定されていればそれを使用
       const next: ThemeColors = {
         primary: partial.primary ?? prev.primary,
         secondary: partial.secondary ?? prev.secondary,

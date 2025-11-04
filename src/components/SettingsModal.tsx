@@ -232,34 +232,78 @@ export function SettingsModal({
                     <div className="settings-group">
                       <h3>テーマカラー</h3>
                       <p className="settings-description">
-                        アプリ全体で使用するアクセントカラーを変更できます
+                        メインカラーを1色選択すると、全体のテーマカラーが自動生成されます
                       </p>
-                      <div className="settings-theme-inputs">
+                      <div className="settings-inline-inputs">
                         <label>
-                          プライマリカラー
+                          メインカラー
                           <input
                             type="color"
                             value={themeColors.primary}
                             onChange={handleThemeChange('primary')}
                           />
                         </label>
-                        <label>
-                          セカンダリカラー
-                          <input
-                            type="color"
-                            value={themeColors.secondary}
-                            onChange={handleThemeChange('secondary')}
-                          />
-                        </label>
-                        <label>
-                          アラートカラー
-                          <input
-                            type="color"
-                            value={themeColors.danger}
-                            onChange={handleThemeChange('danger')}
-                          />
-                        </label>
                       </div>
+                      <div className="theme-preview-palette">
+                        <div className="theme-preview-swatch">
+                          <div
+                            className="theme-preview-color"
+                            style={{ backgroundColor: themeColors.primary }}
+                            title="プライマリカラー"
+                          />
+                          <span>プライマリ</span>
+                        </div>
+                        <div className="theme-preview-swatch">
+                          <div
+                            className="theme-preview-color"
+                            style={{ backgroundColor: themeColors.secondary }}
+                            title="セカンダリカラー（自動生成）"
+                          />
+                          <span>セカンダリ</span>
+                        </div>
+                        <div className="theme-preview-swatch">
+                          <div
+                            className="theme-preview-color"
+                            style={{ backgroundColor: themeColors.danger }}
+                            title="アラートカラー（自動生成）"
+                          />
+                          <span>アラート</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="settings-group theme-advanced">
+                      <details className="theme-advanced-details">
+                        <summary className="theme-advanced-summary">
+                          詳細設定（個別調整）
+                        </summary>
+                        <div className="theme-advanced-content">
+                          <p className="settings-description">
+                            自動生成された色が気に入らない場合、個別に調整できます
+                          </p>
+                          <div className="theme-advanced-controls">
+                            <label>
+                              <span className="theme-label">セカンダリカラー</span>
+                              <input
+                                type="color"
+                                value={themeColors.secondary}
+                                onChange={handleThemeChange('secondary')}
+                              />
+                            </label>
+                            <label>
+                              <span className="theme-label">アラートカラー</span>
+                              <input
+                                type="color"
+                                value={themeColors.danger}
+                                onChange={handleThemeChange('danger')}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </details>
+                    </div>
+
+                    <div className="settings-group">
                       <button
                         type="button"
                         className="ghost-button"

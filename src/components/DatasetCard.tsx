@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { ChangeEvent } from 'react';
 import type { ColumnMeta, ColumnRole, DatasetKey, ParseError, ParseResult } from '../types';
 import { datasetLabel, formatDateLabel } from '../utils';
+import { getColumnIndexById } from '../utils/bom';
 
 export const MULTIPLE_COLUMN_TOKEN = '__MULTIPLE__';
 
@@ -105,18 +106,12 @@ export function buildCellErrorMap(parseResult: ParseResult | null): Map<string, 
 
 function buildColumnIndexMap(columns: ColumnMeta[], parseResult: ParseResult): Map<string, number> {
   const map = new Map<string, number>();
-  const ordered = parseResult.column_order ?? [];
-  ordered.forEach((id, index) => {
-    if (!map.has(id)) {
-      map.set(id, index);
-    }
-  });
 
   columns.forEach((column, index) => {
-    if (!map.has(column.id)) {
-      map.set(column.id, index);
-    }
+    const resolvedIndex = getColumnIndexById(parseResult, column.id);
+    map.set(column.id, resolvedIndex >= 0 ? resolvedIndex : index);
   });
+
   return map;
 }
 

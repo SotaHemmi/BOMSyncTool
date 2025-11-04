@@ -19,10 +19,10 @@ use crate::models::{DiffRow, ParseResult};
 /// 差分行のリスト（ステータス付き）
 ///
 /// # 差分ステータス
-/// - "追加": Bにのみ存在
-/// - "削除": Aにのみ存在
-/// - "変更": 両方に存在するが内容が異なる
-/// - "同一": 両方に存在し内容が同一
+/// - "added": Bにのみ存在
+/// - "removed": Aにのみ存在
+/// - "modified": 両方に存在するが内容が異なる
+/// - "unchanged": 両方に存在し内容が同一
 pub fn compare_boms(parse_a: &ParseResult, parse_b: &ParseResult) -> Vec<DiffRow> {
     // ------------------------------------------------------------------------
     // ステップ1: Reference値でインデックスマッピングを作成
@@ -72,7 +72,7 @@ pub fn compare_boms(parse_a: &ParseResult, parse_b: &ParseResult) -> Vec<DiffRow
         } else {
             // Aのみに存在 → 削除
             diffs.push(DiffRow {
-                status: "削除".to_string(),
+                status: "removed".to_string(),
                 a_index: Some(idx_a),
                 b_index: None,
                 ref_value: ref_a,
@@ -94,7 +94,7 @@ pub fn compare_boms(parse_a: &ParseResult, parse_b: &ParseResult) -> Vec<DiffRow
         if !map_a.contains_key(&ref_b) {
             // Bのみに存在 → 追加
             diffs.push(DiffRow {
-                status: "追加".to_string(),
+                status: "added".to_string(),
                 a_index: None,
                 b_index: Some(idx_b),
                 ref_value: ref_b,
@@ -190,9 +190,9 @@ fn compare_rows(
     // ------------------------------------------------------------------------
 
     let status = if changed_columns.is_empty() {
-        "同一".to_string()
+        "unchanged".to_string()
     } else {
-        "変更".to_string()
+        "modified".to_string()
     };
 
     (status, changed_columns)
@@ -238,7 +238,7 @@ mod tests {
         let diffs = compare_boms(&parse_a, &parse_b);
 
         assert_eq!(diffs.len(), 1);
-        assert_eq!(diffs[0].status, "同一");
+        assert_eq!(diffs[0].status, "unchanged");
     }
 
     #[test]
@@ -278,7 +278,7 @@ mod tests {
         let diffs = compare_boms(&parse_a, &parse_b);
 
         assert_eq!(diffs.len(), 2);
-        assert_eq!(diffs[0].status, "同一"); // C1
-        assert_eq!(diffs[1].status, "追加"); // C2
+        assert_eq!(diffs[0].status, "unchanged"); // C1
+        assert_eq!(diffs[1].status, "added"); // C2
     }
 }

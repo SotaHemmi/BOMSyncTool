@@ -29,6 +29,19 @@ const severityPriority: Record<ErrorSeverity, number> = {
   info: 1
 };
 
+function resolveDataColumnIndex(columnId: string, fallbackIndex: number): number {
+  if (columnId) {
+    const match = columnId.match(/^col-(\d+)$/i);
+    if (match) {
+      const numericIndex = Number(match[1]);
+      if (Number.isFinite(numericIndex)) {
+        return numericIndex;
+      }
+    }
+  }
+  return fallbackIndex;
+}
+
 function aggregateErrors(errors: ParseError[] | null | undefined): Map<string, AggregatedCellError> {
   const map = new Map<string, AggregatedCellError>();
   if (!errors) {
@@ -141,13 +154,14 @@ export function EditableTable({
                 </td>
               )}
               {columns.map((column, columnIndex) => {
-                const mapKey = `${rowIndex},${columnIndex}`;
+                const dataIndex = resolveDataColumnIndex(column.id, columnIndex);
+                const mapKey = `${rowIndex},${dataIndex}`;
                 const cellError = errorMap.get(mapKey);
                 const isHighlighted =
                   highlightedCell !== null &&
                   highlightedCell !== undefined &&
                   highlightedCell.row === rowIndex &&
-                  highlightedCell.column === columnIndex;
+                  highlightedCell.column === dataIndex;
                 const classNames = [
                   cellError ? 'cell-with-error' : null,
                   cellError?.severity === 'error' ? 'cell-error' : null,
@@ -164,13 +178,13 @@ export function EditableTable({
                     contentEditable
                     suppressContentEditableWarning
                     data-row-index={rowIndex}
-                    data-column-index={columnIndex}
-                    onBlur={handleCellBlur(rowIndex, columnIndex)}
-                    onFocus={handleCellFocus(rowIndex, columnIndex)}
+                    data-column-index={dataIndex}
+                    onBlur={handleCellBlur(rowIndex, dataIndex)}
+                    onFocus={handleCellFocus(rowIndex, dataIndex)}
                     className={classNames || undefined}
                     title={cellError ? cellError.messages.join('\n') : undefined}
                   >
-                    {row[columnIndex] ?? ''}
+                    {row[dataIndex] ?? ''}
                   </td>
                 );
               })}

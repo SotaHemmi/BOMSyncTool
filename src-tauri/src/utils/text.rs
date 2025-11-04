@@ -42,10 +42,10 @@ pub fn color_to_status(value: &str) -> Option<&'static str> {
     }
 
     match normalized.as_str() {
-        "#ff0000" | "#ff4d4f" | "red" => Some("削除"),
-        "#00b894" | "#00ff00" | "green" => Some("追加"),
-        "#ffa500" | "#ffb347" | "orange" => Some("変更"),
-        "#808080" | "#a9a9a9" | "gray" | "grey" => Some("同一"),
+        "#ff0000" | "#ff4d4f" | "red" => Some("removed"),
+        "#00b894" | "#00ff00" | "green" => Some("added"),
+        "#ffa500" | "#ffb347" | "orange" => Some("modified"),
+        "#808080" | "#a9a9a9" | "gray" | "grey" => Some("unchanged"),
         _ => None,
     }
 }

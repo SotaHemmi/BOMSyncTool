@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import type { ColumnRole, DatasetKey, ParseResult } from '../types';
 import { datasetLabel } from '../utils';
+import { getColumnIndexById } from '../utils/bom';
 import { Dropzone } from './Dropzone';
-import { PreviewTable, deriveColumns, MULTIPLE_COLUMN_TOKEN } from './DatasetCard';
+import { PreviewTable, deriveColumns } from './DatasetCard';
 
 export interface BOMDatasetAdapter {
   dataset: DatasetKey;
@@ -74,16 +75,9 @@ function collectWarnings(parseResult: ParseResult | null, fallbackErrors?: strin
 
 function buildColumnIndexMap(columns: { id: string; name: string }[], parseResult: ParseResult): Map<string, number> {
   const map = new Map<string, number>();
-  const ordered = parseResult.column_order ?? [];
-  ordered.forEach((id, index) => {
-    if (!map.has(id)) {
-      map.set(id, index);
-    }
-  });
   columns.forEach((column, index) => {
-    if (!map.has(column.id)) {
-      map.set(column.id, index);
-    }
+    const resolvedIndex = getColumnIndexById(parseResult, column.id);
+    map.set(column.id, resolvedIndex >= 0 ? resolvedIndex : index);
   });
   return map;
 }
@@ -120,30 +114,28 @@ function DropzonePreview({ dataset, adapter }: DropzonePreviewProps) {
     [adapter.errors, parseResult]
   );
 
-  const roleAssignments = useMemo(() => {
-    const assignments: Partial<Record<ColumnRole, string[]>> = {};
-    if (!parseResult) return assignments;
-
-    if (parseResult.column_roles) {
+  const columnRoleMap = useMemo(() => {
+    const map: Record<string, ColumnRole> = {};
+    if (parseResult?.column_roles) {
       Object.entries(parseResult.column_roles).forEach(([role, columnIds]) => {
-        if (VISIBLE_ROLE_ORDER.includes(role as ColumnRole)) {
-          assignments[role as ColumnRole] = columnIds.slice();
+        if (!VISIBLE_ROLE_ORDER.includes(role as ColumnRole)) {
+          return;
         }
+        columnIds.forEach(columnId => {
+          map[columnId] = role as ColumnRole;
+        });
       });
     }
 
     if (adapter.columnRoles) {
       Object.entries(adapter.columnRoles).forEach(([columnId, role]) => {
         if (VISIBLE_ROLE_ORDER.includes(role)) {
-          const list = assignments[role] ?? (assignments[role] = []);
-          if (!list.includes(columnId)) {
-            list.push(columnId);
-          }
+          map[columnId] = role;
         }
       });
     }
 
-    return assignments;
+    return map;
   }, [adapter.columnRoles, parseResult]);
 
   return (
@@ -186,41 +178,31 @@ function DropzonePreview({ dataset, adapter }: DropzonePreviewProps) {
         </div>
         <aside className="column-settings-panel" data-column-settings={dataset}>
           <h4>列の役割</h4>
-          {VISIBLE_ROLE_ORDER.map(role => {
-            const assignedColumns = roleAssignments[role] ?? [];
-            const multipleSelected = assignedColumns.length > 1;
-            const initialAssigned = assignedColumns[0] ?? '';
+          {columns.map((column, index) => {
+            const currentRole = columnRoleMap[column.id] ?? 'ignore';
+            const sample = columnSamples.get(column.id);
+            const columnLabel = sample ? `${column.name} (${sample}...)` : column.name;
 
             return (
-              <div className="column-setting-group" key={role}>
+              <div className="column-setting-group" key={column.id}>
                 <label>
-                  <span>{ROLE_LABELS[role]}</span>
+                  <span>{`${index + 1}. ${columnLabel}`}</span>
                   <select
-                    className={`column-select${multipleSelected ? ' column-select--multiple' : ''}`}
-                    data-column-role={role}
+                    className="column-select"
+                    data-column-id={column.id}
                     data-dataset={dataset}
-                    value={multipleSelected ? MULTIPLE_COLUMN_TOKEN : initialAssigned}
+                    value={currentRole}
                     disabled={!adapter.setColumnRole || adapter.isLoading || !hasData}
                     onChange={event => {
                       if (!adapter.setColumnRole || !hasData) return;
-                      const { value } = event.target;
-                      if (value === MULTIPLE_COLUMN_TOKEN) return;
-                      adapter.setColumnRole(role, value || null);
+                      adapter.setColumnRole(event.target.value as ColumnRole, column.id);
                     }}
                   >
-                    <option value="">--</option>
-                    {multipleSelected ? (
-                      <option value={MULTIPLE_COLUMN_TOKEN}>複数列</option>
-                    ) : null}
-                    {columns.map(column => {
-                      const sample = columnSamples.get(column.id);
-                      const displayText = sample ? `${column.name} (${sample}...)` : column.name;
-                      return (
-                        <option key={column.id} value={column.id} title={sample || column.name}>
-                          {displayText}
-                        </option>
-                      );
-                    })}
+                    {VISIBLE_ROLE_ORDER.map(role => (
+                      <option key={role} value={role}>
+                        {ROLE_LABELS[role]}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>

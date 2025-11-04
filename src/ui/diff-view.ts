@@ -13,6 +13,49 @@ import { getPartNo } from '../utils';
  */
 export type FilterType = 'all' | 'diff' | 'added' | 'removed' | 'changed';
 
+type NormalizedStatus = 'added' | 'removed' | 'modified' | 'unchanged' | 'other';
+
+const STATUS_LABELS: Record<NormalizedStatus, string> = {
+  added: '追加',
+  removed: '削除',
+  modified: '変更',
+  unchanged: '同一',
+  other: '不明'
+};
+
+const STATUS_COLORS: Record<NormalizedStatus, string> = {
+  added: '#166534',
+  removed: '#b91c1c',
+  modified: '#b45309',
+  unchanged: '#64748b',
+  other: '#475569'
+};
+
+const STATUS_NORMALIZE_MAP: Record<string, NormalizedStatus> = {
+  added: 'added',
+  '追加': 'added',
+  removed: 'removed',
+  '削除': 'removed',
+  delete: 'removed',
+  deleted: 'removed',
+  modified: 'modified',
+  modify: 'modified',
+  change: 'modified',
+  changed: 'modified',
+  diff: 'modified',
+  '変更': 'modified',
+  unchanged: 'unchanged',
+  same: 'unchanged',
+  identical: 'unchanged',
+  '同一': 'unchanged'
+};
+
+function normalizeStatus(status: string | undefined | null): NormalizedStatus {
+  if (!status) return 'other';
+  const key = status.toLowerCase();
+  return STATUS_NORMALIZE_MAP[key] ?? 'other';
+}
+
 /**
  * 現在のフィルター状態
  */
@@ -46,12 +89,29 @@ export function renderDiffTable(diffs: DiffRow[]): void {
   }
 
   // カウントを更新
-  const added = diffs.filter(diff => diff.status === '追加').length;
-  const removed = diffs.filter(diff => diff.status === '削除').length;
-  const changed = diffs.filter(diff => diff.status === '変更').length;
-  const total = added + removed + changed;
+  let added = 0;
+  let removed = 0;
+  let modified = 0;
 
-  updateFilterCounts(total, added, removed, changed);
+  diffs.forEach(diff => {
+    switch (normalizeStatus(diff.status)) {
+      case 'added':
+        added += 1;
+        break;
+      case 'removed':
+        removed += 1;
+        break;
+      case 'modified':
+        modified += 1;
+        break;
+      default:
+        break;
+    }
+  });
+
+  const diffTotal = added + removed + modified;
+
+  updateFilterCounts(diffTotal, added, removed, modified);
 
   // フィルターを適用
   const filteredDiffs = applyFilter(diffs, currentFilter);
@@ -84,13 +144,11 @@ export function renderDiffTable(diffs: DiffRow[]): void {
 
     // ステータス列
     const statusCell = document.createElement('td');
-    statusCell.textContent = diff.status;
-    if (diff.status === '追加') {
-      statusCell.style.color = '#166534';
-    } else if (diff.status === '削除') {
-      statusCell.style.color = '#b91c1c';
-    } else if (diff.status === '変更') {
-      statusCell.style.color = '#b45309';
+    const normalized = normalizeStatus(diff.status);
+    statusCell.textContent = STATUS_LABELS[normalized] ?? diff.status ?? '-';
+    const color = STATUS_COLORS[normalized];
+    if (color) {
+      statusCell.style.color = color;
     }
     tr.appendChild(statusCell);
 
@@ -158,17 +216,19 @@ function applyFilter(diffs: DiffRow[], filter: FilterType): DiffRow[] {
 
   if (filter === 'diff') {
     // 全ての差分（追加+削除+変更）
-    return diffs.filter(diff => diff.status !== '同一');
+    return diffs.filter(diff => normalizeStatus(diff.status) !== 'unchanged');
   }
 
   // 特定のステータスのみ
-  const statusMap: Record<string, string> = {
-    added: '追加',
-    removed: '削除',
-    changed: '変更'
+  const shouldInclude = (diff: DiffRow): boolean => {
+    const normalized = normalizeStatus(diff.status);
+    if (filter === 'added') return normalized === 'added';
+    if (filter === 'removed') return normalized === 'removed';
+    if (filter === 'changed') return normalized === 'modified';
+    return true;
   };
 
-  return diffs.filter(diff => diff.status === statusMap[filter]);
+  return diffs.filter(diff => shouldInclude(diff));
 }
 
 /**

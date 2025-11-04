@@ -4,6 +4,7 @@ import type { ProjectRecord } from '../types';
 interface ProjectPanelProps {
   projects: ProjectRecord[];
   favorites: Set<string>;
+  favoriteArchive: Record<string, ProjectRecord>;
   activeProjectId: string | null;
   onProjectClick: (projectId: string) => void;
   onToggleFavorite: (projectId: string) => void;
@@ -18,30 +19,46 @@ function renderProjectName(project: ProjectRecord): string {
 export function ProjectPanel({
   projects,
   favorites,
+  favoriteArchive,
   activeProjectId,
   onProjectClick,
   onToggleFavorite,
   onRename,
   onDelete
 }: ProjectPanelProps) {
-  const favoriteProjects = useMemo(() => {
-    const favoriteList: ProjectRecord[] = [];
-    projects.forEach(project => {
-      if (favorites.has(project.id)) {
-        favoriteList.push(project);
+  interface FavoriteEntry {
+    project: ProjectRecord;
+    isArchived: boolean;
+  }
+
+  const favoriteEntries = useMemo(() => {
+    const entries: FavoriteEntry[] = [];
+    favorites.forEach(projectId => {
+      const match = projects.find(project => project.id === projectId);
+      if (match) {
+        entries.push({ project: match, isArchived: false });
+        return;
+      }
+      const archived = favoriteArchive[projectId];
+      if (archived) {
+        entries.push({ project: archived, isArchived: true });
       }
     });
-    return favoriteList;
-  }, [favorites, projects]);
+    return entries;
+  }, [favoriteArchive, favorites, projects]);
 
-  const renderProjectRow = (project: ProjectRecord) => {
+  const renderProjectRow = (project: ProjectRecord, options?: { isArchived?: boolean }) => {
+    const isArchived = options?.isArchived ?? false;
     const isActive = project.id === activeProjectId;
     const isFavorite = favorites.has(project.id);
-
+    const displayName = renderProjectName(project);
     const handleRename = () => {
+      if (isArchived) {
+        window.alert('お気に入りを復元してから名前を変更してください。');
+        return;
+      }
       if (!onRename) return;
-      const current = renderProjectName(project);
-      const next = window.prompt('タブ名を変更', current);
+      const next = window.prompt('タブ名を変更', displayName);
       if (next === null) return;
       const result = onRename(project.id, next);
       if (result === false) {
@@ -50,8 +67,11 @@ export function ProjectPanel({
     };
 
     const handleDelete = () => {
+      if (isArchived) {
+        window.alert('お気に入りから削除してから完全に削除してください。');
+        return;
+      }
       if (!onDelete) return;
-      const displayName = renderProjectName(project);
       if (window.confirm(`「${displayName}」を削除しますか？`)) {
         onDelete(project.id);
       }
@@ -60,7 +80,7 @@ export function ProjectPanel({
     return (
       <div
         key={project.id}
-        className={`session-tab${isActive ? ' is-active' : ''}`}
+        className={`session-tab${isActive ? ' is-active' : ''}${isArchived ? ' is-archived' : ''}`}
       >
         <button
           type="button"
@@ -69,7 +89,10 @@ export function ProjectPanel({
           aria-pressed={isActive}
         >
           <span className="session-tab-text">
-            <span className="session-tab-label">{renderProjectName(project)}</span>
+            <span className="session-tab-label">
+              {displayName}
+              {isArchived && <span className="session-tab-status">（削除済み）</span>}
+            </span>
           </span>
         </button>
         <button
@@ -85,6 +108,7 @@ export function ProjectPanel({
           className="session-tab-close"
           title="名前を変更"
           aria-label="タブ名を変更"
+          disabled={isArchived}
           onClick={event => {
             event.stopPropagation();
             handleRename();
@@ -97,6 +121,7 @@ export function ProjectPanel({
           className="session-tab-close"
           title="タブを削除"
           aria-label="タブを削除"
+          disabled={isArchived}
           onClick={event => {
             event.stopPropagation();
             handleDelete();
@@ -115,8 +140,8 @@ export function ProjectPanel({
         <div className="favorites-section">
           <p className="favorites-header">お気に入り</p>
           <div className="favorites-tab-bar">
-            {favoriteProjects.length > 0 ? (
-              favoriteProjects.map(renderProjectRow)
+            {favoriteEntries.length > 0 ? (
+              favoriteEntries.map(entry => renderProjectRow(entry.project, { isArchived: entry.isArchived }))
             ) : (
               <p className="session-tab-empty">お気に入りに登録されたプロジェクトはありません。</p>
             )}
@@ -126,7 +151,7 @@ export function ProjectPanel({
           <p className="projects-header">全プロジェクト</p>
           <div className="session-tab-bar">
             {projects.length > 0 ? (
-              projects.map(renderProjectRow)
+              projects.map(project => renderProjectRow(project))
             ) : (
               <p className="session-tab-empty">保存されたプロジェクトがありません。</p>
             )}

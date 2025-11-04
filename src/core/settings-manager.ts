@@ -8,6 +8,7 @@ import { projectSettings, readProjectSettingsFromForm, applyProjectSettingsToFor
 import { loadDictionaryIntoEditor, importDictionaryFromFile, exportDictionaryToFile, saveDictionaryFromEditor } from './dictionary-manager';
 import { loadThemeSettings, saveThemeSettings, removeThemeSettings, setProcessing, logActivity } from '../utils';
 import { saveProjectSettings as saveProjectSettingsToStorage } from '../utils/storage';
+import { applyThemeVariables } from '../utils/theme';
 
 /**
  * テーマカラー入力要素を取得
@@ -93,9 +94,7 @@ export function resetTheme(): void {
  * @param danger - デンジャーカラー
  */
 export function applyTheme(primary: string, secondary: string, danger: string): void {
-  document.documentElement.style.setProperty('--color-primary', primary);
-  document.documentElement.style.setProperty('--color-secondary', secondary);
-  document.documentElement.style.setProperty('--color-danger', danger);
+  applyThemeVariables({ primary, secondary, danger });
 }
 
 function migrateLegacyThemeSettings(): void {
