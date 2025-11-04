@@ -5,9 +5,9 @@
  */
 
 import { save } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import type { ColumnMeta, DiffRow, ParseResult } from '../types';
 import { datasetState, currentDiffs, mergedBom } from '../state/app-state';
-import { getRef, getPartNo } from '../utils';
 import { saveSessionToFile } from '../services';
 import { setProcessing, logActivity } from '../utils';
 
@@ -187,10 +187,17 @@ function buildComparisonParseResult(): ParseResult | null {
   };
 }
 
-function getParseResultForSource(source: ExportSource): ParseResult | null {
+function getParseResultForSource(source: ExportSource, format?: 'csv' | 'netlist'): ParseResult | null {
   switch (source) {
     case 'comparison':
-      return buildComparisonParseResult();
+      // CSV形式の場合はステータス列を含む比較結果を返す
+      // ネットリスト形式の場合は元のBOM Bを返す（差分情報は不要）
+      if (format === 'csv') {
+        return buildComparisonParseResult();
+      } else {
+        return datasetState.b.parseResult ? cloneParseResult(datasetState.b.parseResult) :
+               datasetState.a.parseResult ? cloneParseResult(datasetState.a.parseResult) : null;
+      }
     case 'replacement':
       return mergedBom ? cloneParseResult(mergedBom) : null;
     case 'bom_a':
@@ -221,7 +228,7 @@ function getExportFilename(source: ExportSource): string {
  * CSV形式でエクスポート
  */
 export async function exportToCSV(source: ExportSource): Promise<void> {
-  const data = getParseResultForSource(source);
+  const data = getParseResultForSource(source, 'csv');
   if (!data || data.rows.length === 0) {
     alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
     return;
@@ -237,21 +244,16 @@ export async function exportToCSV(source: ExportSource): Promise<void> {
 
   try {
     setProcessing(true, `${SOURCE_LABEL[source]}をCSV出力中...`);
-    const csvLines: string[] = [];
-    csvLines.push(data.headers.join(','));
 
-    data.rows.forEach(row => {
-      const escaped = row.map(value => {
-        if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-          return `"${value.replace(/"/g, '""')}"`;
-        }
-        return value;
-      });
-      csvLines.push(escaped.join(','));
+    // Rustコマンドでエクスポート処理を実行
+    const content = await invoke<string>('export_bom_file', {
+      parse: data,
+      format: 'CSV',
+      diffs: null,
+      includeComments: false
     });
 
-    const BOM = '\uFEFF';
-    await saveSessionToFile(filePath, BOM + csvLines.join('\n'));
+    await saveSessionToFile(filePath, content);
 
     logActivity(`${SOURCE_LABEL[source]}をCSVに出力しました。`);
     alert(`CSV出力が完了しました。\n${data.rows.length}行のデータを出力しました。`);
@@ -267,7 +269,7 @@ export async function exportToCSV(source: ExportSource): Promise<void> {
  * PADS-ECO形式でエクスポート
  */
 export async function exportToECO(source: ExportSource): Promise<void> {
-  const data = getParseResultForSource(source);
+  const data = getParseResultForSource(source, 'netlist');
   if (!data || data.rows.length === 0) {
     alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
     return;
@@ -283,13 +285,13 @@ export async function exportToECO(source: ExportSource): Promise<void> {
   try {
     setProcessing(true, `${SOURCE_LABEL[source]}をPADS-ECO出力中...`);
 
-    let content = '*PADS-ECO*\n*PART*\n';
-    data.rows.forEach((_, idx) => {
-      const ref = getRef(data, idx);
-      const partNo = getPartNo(data, idx);
-      content += `${ref} ${partNo}\n`;
+    // Rustコマンドでエクスポート処理を実行
+    const content = await invoke<string>('export_bom_file', {
+      parse: data,
+      format: 'ECO',
+      diffs: null,
+      includeComments: false
     });
-    content += '*END*\n';
 
     await saveSessionToFile(filePath, content);
 
@@ -307,7 +309,7 @@ export async function exportToECO(source: ExportSource): Promise<void> {
  * CCF形式でエクスポート
  */
 export async function exportToCCF(source: ExportSource): Promise<void> {
-  const data = getParseResultForSource(source);
+  const data = getParseResultForSource(source, 'netlist');
   if (!data || data.rows.length === 0) {
     alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
     return;
@@ -323,20 +325,13 @@ export async function exportToCCF(source: ExportSource): Promise<void> {
   try {
     setProcessing(true, `${SOURCE_LABEL[source]}をCCF出力中...`);
 
-    const grouped = groupByPartNo(data);
-    let content = '$CCF{\n     DEFINITION{\n';
-    const sortedPartNos = Array.from(grouped.keys()).sort();
-
-    for (const partNo of sortedPartNos) {
-      const refs = grouped.get(partNo)!;
-      content += `                ${partNo}:${refs[0]}`;
-      for (let i = 1; i < refs.length; i++) {
-        content += `,\n                         ${refs[i]}`;
-      }
-      content += ';\n';
-    }
-
-    content += '               }\n     NET{\n        }\n    }\n';
+    // Rustコマンドでエクスポート処理を実行
+    const content = await invoke<string>('export_bom_file', {
+      parse: data,
+      format: 'CCF',
+      diffs: null,
+      includeComments: false
+    });
 
     await saveSessionToFile(filePath, content);
 
@@ -354,7 +349,7 @@ export async function exportToCCF(source: ExportSource): Promise<void> {
  * MSF形式でエクスポート
  */
 export async function exportToMSF(source: ExportSource): Promise<void> {
-  const data = getParseResultForSource(source);
+  const data = getParseResultForSource(source, 'netlist');
   if (!data || data.rows.length === 0) {
     alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
     return;
@@ -370,20 +365,13 @@ export async function exportToMSF(source: ExportSource): Promise<void> {
   try {
     setProcessing(true, `${SOURCE_LABEL[source]}をMSF出力中...`);
 
-    const grouped = groupByPartNo(data);
-    let content = '$MSF {\n     SHAPE {\n';
-    const sortedPartNos = Array.from(grouped.keys()).sort();
-
-    for (const partNo of sortedPartNos) {
-      const refs = grouped.get(partNo)!;
-      content += `                ${partNo}:${refs[0]}`;
-      for (let i = 1; i < refs.length; i++) {
-        content += `,\n                         ${refs[i]}`;
-      }
-      content += ';\n';
-    }
-
-    content += '           }\n      }\n';
+    // Rustコマンドでエクスポート処理を実行
+    const content = await invoke<string>('export_bom_file', {
+      parse: data,
+      format: 'MSF',
+      diffs: null,
+      includeComments: false
+    });
 
     await saveSessionToFile(filePath, content);
 
@@ -397,17 +385,3 @@ export async function exportToMSF(source: ExportSource): Promise<void> {
   }
 }
 
-function groupByPartNo(data: ParseResult): Map<string, string[]> {
-  const grouped = new Map<string, string[]>();
-
-  data.rows.forEach((_, idx) => {
-    const ref = getRef(data, idx);
-    const partNo = getPartNo(data, idx) || '(未指定)';
-    if (!grouped.has(partNo)) {
-      grouped.set(partNo, []);
-    }
-    grouped.get(partNo)!.push(ref);
-  });
-
-  return grouped;
-}

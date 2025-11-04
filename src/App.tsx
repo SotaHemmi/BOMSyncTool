@@ -618,10 +618,7 @@ function App() {
         source: 'comparison',
         label: '比較結果をエクスポート',
         handlers: {
-          csv: makeExportHandler('comparison', exportToCSV),
-          eco: makeExportHandler('comparison', exportToECO),
-          ccf: makeExportHandler('comparison', exportToCCF),
-          msf: makeExportHandler('comparison', exportToMSF)
+          csv: makeExportHandler('comparison', exportToCSV)
         },
         visible: resultMode === 'comparison' && hasComparisonExport
       },
@@ -690,6 +687,9 @@ function App() {
     },
     applyDefaultPreprocess: () => handleApplyDefaultPreprocess(bomA.applyPreprocess),
     openEdit: () => handleOpenEdit('a'),
+    exportECO: () => runExport(() => exportToECO('bom_a')),
+    exportCCF: () => runExport(() => exportToCCF('bom_a')),
+    exportMSF: () => runExport(() => exportToMSF('bom_a')),
     handleError: (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       alert(`BOM A: ${message}`);
@@ -700,7 +700,8 @@ function App() {
     handleLoadFile,
     handleOpenEdit,
     loadingDatasets.a,
-    projects.saveProject
+    projects.saveProject,
+    runExport
   ]);
 
   const datasetAdapterB = useMemo(() => ({
@@ -720,6 +721,9 @@ function App() {
     },
     applyDefaultPreprocess: () => handleApplyDefaultPreprocess(bomB.applyPreprocess),
     openEdit: () => handleOpenEdit('b'),
+    exportECO: () => runExport(() => exportToECO('bom_b')),
+    exportCCF: () => runExport(() => exportToCCF('bom_b')),
+    exportMSF: () => runExport(() => exportToMSF('bom_b')),
     handleError: (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       alert(`BOM B: ${message}`);
@@ -730,7 +734,8 @@ function App() {
     handleLoadFile,
     handleOpenEdit,
     loadingDatasets.b,
-    projects.saveProject
+    projects.saveProject,
+    runExport
   ]);
 
   const dictionaryProps: DictionaryTabProps = useMemo(

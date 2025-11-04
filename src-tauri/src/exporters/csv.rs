@@ -38,5 +38,8 @@ pub fn export_csv(
         .into_inner()
         .map_err(|e| AppError::new(format!("CSVバッファ取得エラー: {}", e)))?;
 
-    String::from_utf8(data).map_err(|e| AppError::new(format!("UTF-8変換エラー: {}", e)))
+    let csv_string = String::from_utf8(data).map_err(|e| AppError::new(format!("UTF-8変換エラー: {}", e)))?;
+
+    // UTF-8 BOMを先頭に追加
+    Ok(format!("\u{FEFF}{}", csv_string))
 }

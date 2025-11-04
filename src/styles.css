@@ -1123,6 +1123,7 @@ body {
   gap: 12px;
   justify-content: flex-end;
   flex-wrap: wrap;
+  padding: 1rem 0;
 }
 
 .export-action-group {
@@ -1130,6 +1131,40 @@ body {
   flex-direction: column;
   gap: 6px;
   min-width: 180px;
+}
+
+.export-select {
+  padding: 10px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  background: white;
+  color: #324559;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.export-select:hover {
+  background: #f5f8fc;
+  border-color: #94a3b8;
+}
+
+.export-select:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+  border-color: var(--color-primary);
+}
+
+.export-select--dataset {
+  flex: 0 0 auto;
+  min-width: 100px;
+}
+
+.export-select--format {
+  flex: 1;
+  min-width: 120px;
 }
 
 .export-action-title {

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import type { ColumnRole, DatasetKey, ParseResult } from '../types';
 import { datasetLabel } from '../utils';
 import { Dropzone } from './Dropzone';
@@ -17,6 +17,9 @@ export interface BOMDatasetAdapter {
   setColumnRole?: (role: ColumnRole, columnId: string | null) => void;
   applyDefaultPreprocess?: () => void;
   openEdit?: () => void;
+  exportECO?: () => void;
+  exportCCF?: () => void;
+  exportMSF?: () => void;
   handleError?: (error: unknown) => void;
 }
 
@@ -272,6 +275,22 @@ export function BOMCompare({
   const canCompare = Boolean(datasetA.parseResult && datasetB.parseResult) && !combinedProcessing;
   const hasAnyData = Boolean(datasetA.parseResult || datasetB.parseResult);
 
+  const [exportDataset, setExportDataset] = React.useState<'a' | 'b'>('a');
+  const [exportFormat, setExportFormat] = React.useState<'eco' | 'ccf' | 'msf'>('eco');
+
+  const handleExport = () => {
+    const adapter = exportDataset === 'a' ? datasetA : datasetB;
+    if (exportFormat === 'eco' && adapter.exportECO) {
+      adapter.exportECO();
+    } else if (exportFormat === 'ccf' && adapter.exportCCF) {
+      adapter.exportCCF();
+    } else if (exportFormat === 'msf' && adapter.exportMSF) {
+      adapter.exportMSF();
+    }
+  };
+
+  const canExport = (exportDataset === 'a' ? Boolean(datasetA.parseResult) : Boolean(datasetB.parseResult)) && !combinedProcessing;
+
   return (
     <>
       <section className="control-panel-vertical">
@@ -298,6 +317,34 @@ export function BOMCompare({
         >
           <DropzonePreview dataset={datasetB.dataset} adapter={datasetB} />
         </Dropzone>
+
+        <div className="export-actions">
+          <select
+            className="export-select export-select--dataset"
+            value={exportDataset}
+            onChange={(e) => setExportDataset(e.target.value as 'a' | 'b')}
+          >
+            <option value="a">BOM A</option>
+            <option value="b">BOM B</option>
+          </select>
+          <select
+            className="export-select export-select--format"
+            value={exportFormat}
+            onChange={(e) => setExportFormat(e.target.value as 'eco' | 'ccf' | 'msf')}
+          >
+            <option value="eco">PADS-ECO</option>
+            <option value="ccf">CCF</option>
+            <option value="msf">MSF</option>
+          </select>
+          <button
+            type="button"
+            className="outline-button"
+            onClick={handleExport}
+            disabled={!canExport}
+          >
+            出力
+          </button>
+        </div>
 
         <div className="primary-actions">
           <button

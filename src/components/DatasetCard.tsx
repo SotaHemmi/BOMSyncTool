@@ -240,6 +240,9 @@ interface DatasetCardProps {
   onColumnRoleChange?: (role: ColumnRole, columnId: string | null) => void;
   onDefaultPreprocess?: () => void;
   onOpenEdit?: () => void;
+  onExportECO?: () => void;
+  onExportCCF?: () => void;
+  onExportMSF?: () => void;
 }
 
 export function DatasetCard({
@@ -252,7 +255,10 @@ export function DatasetCard({
   isProcessing = false,
   onColumnRoleChange,
   onDefaultPreprocess,
-  onOpenEdit
+  onOpenEdit,
+  onExportECO,
+  onExportCCF,
+  onExportMSF
 }: DatasetCardProps) {
   const hasData = Boolean(parseResult && parseResult.rows.length > 0);
   const columns = useMemo(() => (parseResult ? deriveColumns(parseResult) : []), [parseResult]);
@@ -394,7 +400,41 @@ export function DatasetCard({
                       <h3>{fileName ?? `${datasetLabel(dataset)} プレビュー`}</h3>
                       <p className="drop-preview-meta">{previewMeta}</p>
                     </div>
-                    <div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {(onExportECO || onExportCCF || onExportMSF) && (
+                        <details className="export-dropdown">
+                          <summary className="ghost-button">エクスポート</summary>
+                          <div className="export-menu">
+                            {onExportECO && (
+                              <button
+                                type="button"
+                                onClick={onExportECO}
+                                disabled={isProcessing}
+                              >
+                                PADS-ECO
+                              </button>
+                            )}
+                            {onExportCCF && (
+                              <button
+                                type="button"
+                                onClick={onExportCCF}
+                                disabled={isProcessing}
+                              >
+                                CCF
+                              </button>
+                            )}
+                            {onExportMSF && (
+                              <button
+                                type="button"
+                                onClick={onExportMSF}
+                                disabled={isProcessing}
+                              >
+                                MSF
+                              </button>
+                            )}
+                          </div>
+                        </details>
+                      )}
                       <button
                         type="button"
                         className="ghost-button"
