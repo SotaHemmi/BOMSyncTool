@@ -116,7 +116,6 @@ function App() {
       a: { ...DEFAULT_EDIT_PREPROCESS },
       b: { ...DEFAULT_EDIT_PREPROCESS }
     });
-  const autoSaveDebounceRef = useRef<number | null>(null);
 
   const getBom = useCallback(
     (dataset: DatasetKey) => (dataset === 'a' ? bomA : bomB),
@@ -166,9 +165,10 @@ function App() {
       const applied = await dictionary.applyRegistrationToBOM();
       if (applied > 0) {
         syncDatasetsFromState();
+        projects.saveProject();
       }
     })();
-  }, [dictionary, syncDatasetsFromState]);
+  }, [dictionary, projects.saveProject, syncDatasetsFromState]);
 
   useEffect(() => {
     const handleDataLoaded = () => {
@@ -231,53 +231,6 @@ function App() {
     lastSyncedProjectRef.current = { id, savedAt };
   }, [activeProject, bomA, bomB]);
 
-  useEffect(() => {
-    projects.projectSettingsRef.current = settings.settings;
-  }, [projects.projectSettingsRef, settings.settings]);
-
-  useEffect(() => {
-    projects.startAutoSave(settings.settings.autoIntervalMinutes);
-    return () => {
-      projects.stopAutoSave();
-    };
-  }, [settings.settings.autoIntervalMinutes]);
-
-  const scheduleAutoSave = useCallback(() => {
-    if (!projects.activeProjectId) {
-      return;
-    }
-    if (autoSaveDebounceRef.current !== null) {
-      window.clearTimeout(autoSaveDebounceRef.current);
-    }
-    autoSaveDebounceRef.current = window.setTimeout(() => {
-      projects.saveProject();
-      autoSaveDebounceRef.current = null;
-    }, 1500);
-  }, [projects]);
-
-  useEffect(() => {
-    scheduleAutoSave();
-    return () => {
-      if (autoSaveDebounceRef.current !== null) {
-        window.clearTimeout(autoSaveDebounceRef.current);
-        autoSaveDebounceRef.current = null;
-      }
-    };
-  }, [
-    scheduleAutoSave,
-    projects.activeProjectId,
-    bomA.parseResult,
-    bomA.columnRoles,
-    bomA.errors,
-    bomA.fileName,
-    bomA.lastUpdated,
-    bomB.parseResult,
-    bomB.columnRoles,
-    bomB.errors,
-    bomB.fileName,
-    bomB.lastUpdated
-  ]);
-
   const handleLoadFile = useCallback(
     async (
       dataset: DatasetKey,
@@ -295,6 +248,7 @@ function App() {
         setCurrentDiffs([]);
         setMergedBom(null);
         setResultsFilter('diff');
+        projects.saveProject();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         alert(`ファイルの読み込みに失敗しました: ${message}`);
@@ -302,7 +256,7 @@ function App() {
         setLoadingDatasets(prev => ({ ...prev, [dataset]: false }));
       }
     },
-    []
+    [projects.saveProject]
   );
 
   const handleApplyDefaultPreprocess = useCallback(
@@ -310,6 +264,7 @@ function App() {
       setIsProcessing(true);
       try {
         await apply(defaultPreprocessOptions);
+        projects.saveProject();
         alert('デフォルト前処理を適用しました。');
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -318,7 +273,7 @@ function App() {
         setIsProcessing(false);
       }
     },
-    [defaultPreprocessOptions]
+    [defaultPreprocessOptions, projects.saveProject]
   );
 
   const handleCompare = useCallback(async () => {
@@ -380,6 +335,7 @@ function App() {
         ...diff,
         normalized: normalizeStatusValue(diff.status)
       }));
+      const hasChanges = normalizedDiffs.some(diff => diff.normalized !== 'unchanged');
 
       const merged = await updateAndAppendBoms(sourceA, sourceB);
 
@@ -409,13 +365,16 @@ function App() {
       setReplacementResult(merged);
       setReplacementStatuses(statuses);
       setResultMode('replacement');
+      if (hasChanges) {
+        projects.saveProject();
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       alert(`置き換えに失敗しました: ${message}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [bomA, bomB]);
+  }, [bomA, bomB, projects.saveProject]);
 
   const convertPreprocessToEdit = useCallback(
     (options: PreprocessOptions): EditPreprocessOptions => ({
@@ -561,6 +520,7 @@ function App() {
           setEditRows(prev => ({ ...prev, [dataset]: cloneRows(bom.parseResult!.rows) }));
         }
         setEditPreprocessOptionsState(prev => ({ ...prev, [dataset]: { ...options } }));
+        projects.saveProject();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         alert(`前処理の適用に失敗しました: ${message}`);
@@ -568,7 +528,7 @@ function App() {
         setIsProcessing(false);
       }
     },
-    [getBom]
+    [getBom, projects.saveProject]
   );
 
   const handleEditApply = useCallback(
@@ -583,9 +543,17 @@ function App() {
         editRows[dataset] && editRows[dataset].length > 0
           ? editRows[dataset]
           : cloneRows(parse.rows);
+      const filteredErrors = parse.errors.filter(
+        message => !message.includes('編集モードで指定してください。')
+      );
+      const filteredStructured = parse.structured_errors
+        ?.filter(error => !error.message.includes('編集モードで指定してください。'));
+
       const updated: ParseResult = {
         ...parse,
-        rows: cloneRows(rows)
+        rows: cloneRows(rows),
+        errors: filteredErrors,
+        structured_errors: filteredStructured && filteredStructured.length > 0 ? filteredStructured : undefined
       };
 
       bom.updateFromParseResult(updated, bom.fileName);
@@ -718,6 +686,7 @@ function App() {
     setColumnRole: (role: ColumnRole, columnId: string | null) => {
       if (!columnId) return;
       bomA.setColumnRoleById(columnId, role);
+      projects.saveProject();
     },
     applyDefaultPreprocess: () => handleApplyDefaultPreprocess(bomA.applyPreprocess),
     openEdit: () => handleOpenEdit('a'),
@@ -730,7 +699,8 @@ function App() {
     handleApplyDefaultPreprocess,
     handleLoadFile,
     handleOpenEdit,
-    loadingDatasets.a
+    loadingDatasets.a,
+    projects.saveProject
   ]);
 
   const datasetAdapterB = useMemo(() => ({
@@ -746,6 +716,7 @@ function App() {
     setColumnRole: (role: ColumnRole, columnId: string | null) => {
       if (!columnId) return;
       bomB.setColumnRoleById(columnId, role);
+      projects.saveProject();
     },
     applyDefaultPreprocess: () => handleApplyDefaultPreprocess(bomB.applyPreprocess),
     openEdit: () => handleOpenEdit('b'),
@@ -758,7 +729,8 @@ function App() {
     handleApplyDefaultPreprocess,
     handleLoadFile,
     handleOpenEdit,
-    loadingDatasets.b
+    loadingDatasets.b,
+    projects.saveProject
   ]);
 
   const dictionaryProps: DictionaryTabProps = useMemo(
@@ -922,8 +894,6 @@ function App() {
         onOpenChange={setSettingsModalOpen}
         onTabChange={setSettingsTab}
         projectSettings={settings.settings}
-        onAutoIntervalChange={value => settings.updateSettings({ autoIntervalMinutes: value })}
-        onAutoMaxEntriesChange={value => settings.updateSettings({ autoMaxEntries: value })}
         onDefaultPreprocessChange={(option, value) => {
           const current =
             settings.settings.defaultPreprocess ?? {

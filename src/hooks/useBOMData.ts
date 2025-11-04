@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type {
+  ColumnMeta,
   ColumnRole,
   DatasetKey,
   ParseResult
@@ -99,6 +100,132 @@ function buildRoleMapping(columnRoles: ColumnRoles): Record<string, string[]> {
   return mapping;
 }
 
+const ROLE_PRIORITY: ColumnRole[] = ['ref', 'part_no', 'manufacturer'];
+const ROLE_LABELS: Record<Exclude<ColumnRole, 'ignore'>, string> = {
+  ref: 'Reference',
+  part_no: 'Part_No',
+  manufacturer: 'Manufacturer'
+};
+const FALLBACK_HEADER_PATTERN = /^column\s+\d+$/i;
+
+function findRoleForColumn(
+  columnId: string,
+  mapping: Record<string, string[]>
+): ColumnRole | null {
+  for (const [role, ids] of Object.entries(mapping)) {
+    if (!isColumnRole(role)) continue;
+    if (ids.includes(columnId)) {
+      return role;
+    }
+  }
+  return null;
+}
+
+function getRoleLabel(role: ColumnRole | null): string | undefined {
+  if (!role || role === 'ignore') {
+    return undefined;
+  }
+  return ROLE_LABELS[role];
+}
+
+function buildOrderedColumnIds(
+  base: ParseResult,
+  mapping: Record<string, string[]>
+): string[] {
+  const initialOrder =
+    (base.column_order && base.column_order.length > 0
+      ? base.column_order
+      : base.columns && base.columns.length > 0
+        ? base.columns.map(column => column.id)
+        : base.rows[0]?.map((_, index) => `col-${index}`)) ?? [];
+
+  const priorityIds = ROLE_PRIORITY.flatMap(role => mapping[role] ?? []);
+
+  const order: string[] = [];
+  priorityIds.forEach(id => {
+    if (!order.includes(id)) {
+      order.push(id);
+    }
+  });
+
+  initialOrder.forEach(id => {
+    if (!order.includes(id)) {
+      order.push(id);
+    }
+  });
+
+  Object.values(mapping)
+    .flat()
+    .forEach(id => {
+      if (!order.includes(id)) {
+        order.push(id);
+      }
+    });
+
+  const columnCount = Math.max(
+    order.length,
+    base.columns?.length ?? 0,
+    base.headers?.length ?? 0,
+    base.rows[0]?.length ?? 0
+  );
+
+  for (let index = 0; index < columnCount; index += 1) {
+    const fallbackId = `col-${index}`;
+    if (!order.includes(fallbackId)) {
+      order.push(fallbackId);
+    }
+  }
+
+  return order;
+}
+
+function buildColumnsWithRoles(
+  base: ParseResult,
+  order: string[],
+  mapping: Record<string, string[]>
+): ColumnMeta[] {
+  const columnsById = new Map<string, ColumnMeta>();
+  (base.columns ?? []).forEach(column => {
+    columnsById.set(column.id, { ...column });
+  });
+
+  return order.map((columnId, index) => {
+    const existing = columnsById.get(columnId);
+    const role = findRoleForColumn(columnId, mapping);
+    const roleLabel = getRoleLabel(role);
+    let name =
+      existing?.name ??
+      base.headers?.[index] ??
+      `Column ${index + 1}`;
+
+    if (roleLabel && (name.trim() === '' || FALLBACK_HEADER_PATTERN.test(name.trim()))) {
+      name = roleLabel;
+    }
+
+    return {
+      id: columnId,
+      name
+    };
+  });
+}
+
+function applyRolesToParseResult(
+  base: ParseResult,
+  mapping: Record<string, string[]>
+): ParseResult {
+  const orderedIds = buildOrderedColumnIds(base, mapping);
+  const updatedColumns = buildColumnsWithRoles(base, orderedIds, mapping);
+  const updatedHeaders = updatedColumns.map(column => column.name);
+
+  return {
+    ...base,
+    column_roles: mapping,
+    column_order: orderedIds,
+    columns: updatedColumns,
+    headers: updatedHeaders
+  };
+}
+
 export interface UseBOMDataResult {
   parseResult: ParseResult | null;
   fileName: string | null;
@@ -132,26 +259,22 @@ export function useBOMData(dataset: DatasetKey): UseBOMDataResult {
       }
 
       const cloned = cloneParseResult(result);
-      const derivedColumns = deriveColumns(cloned);
       const roles = extractColumnRoles(cloned);
-      setParseResult(cloned);
+      const mapping = buildRoleMapping(roles);
+      const normalized = applyRolesToParseResult(cloned, mapping);
+      setParseResult(normalized);
       setFileName(nextFileName ?? fileName ?? null);
       const timestamp = new Date().toISOString();
       setLastUpdated(timestamp);
       setColumnRoles(roles);
-      setErrors(cloned.errors ?? []);
+      setErrors(normalized.errors ?? []);
 
       const target = datasetState[dataset];
-      target.parseResult = cloneParseResult(cloned);
+      target.parseResult = cloneParseResult(normalized);
       target.fileName = nextFileName ?? fileName ?? null;
       target.filePath = null;
       target.lastUpdated = timestamp;
       target.columnRoles = { ...roles };
-
-      // Ensure column order is aligned with derived columns
-      if (!cloned.column_order || cloned.column_order.length === 0) {
-        cloned.column_order = derivedColumns.map(column => column.id);
-      }
     },
     [dataset, fileName]
   );
@@ -182,16 +305,13 @@ export function useBOMData(dataset: DatasetKey): UseBOMDataResult {
         const mapping = buildRoleMapping(nextRoles);
         setColumnRoles(nextRoles);
 
+        const updatedParse = applyRolesToParseResult(current, mapping);
+
         const target = datasetState[dataset];
         target.columnRoles = { ...nextRoles };
-        if (target.parseResult) {
-          target.parseResult.column_roles = mapping;
-        }
+        target.parseResult = cloneParseResult(updatedParse);
 
-        return {
-          ...current,
-          column_roles: mapping
-        };
+        return updatedParse;
       });
     },
     [columnRoles, dataset]

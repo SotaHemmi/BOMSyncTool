@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### 変更
+- 自動保存機能を完全廃止し、設定画面から自動保存関連の入力（間隔・保持数）を削除
+- 列役割の手動設定時にヘッダー名を役割名へ置き換え、Reference/Part_No/Manufacturer/その他の順で表示するよう調整
+- BOM読み込み時の列検出を刷新し、複数候補や開始行判定失敗時に警告を返すようRustパーサーを強化
 - 印刷機能を利用できるようメインウィンドウの capability に `core:webview:allow-print` を追加
 - README と開発ドキュメントに Tauri Capabilities 設定と印刷手順を追記
 - `window.print()` の利用箇所へ Capabilities 依存関係をコメントで明記

@@ -1,69 +1,85 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::models::{AppError, ColumnMeta, ParseError, ParseResult};
-use crate::utils::header::{
-    matches_manufacturer_header, matches_part_no_header, matches_ref_header, matches_value_header,
-    normalize_header,
-};
 use crate::utils::text::find_invalid_char;
 
-/// BOM行データを解析してParseResultを構築する
-///
-/// # 処理の流れ
-/// 1. ヘッダー行の検出（最初の非空白行）
-/// 2. データ行の抽出（末尾の空白行を除く）
-/// 3. 列の役割を自動推測（ref, part_no, value, manufacturer）
-/// 4. データのバリデーション（無効文字、重複、空欄チェック）
-/// 5. 列の表示順序を決定（ref → part_no → manufacturer → その他）
-///
-/// # 引数
-/// * `rows` - CSVやExcelから読み込んだ全行
-///
-/// # 戻り値
-/// * `Ok(ParseResult)` - 解析成功
-/// * `Err(AppError)` - ヘッダー行が見つからない等のエラー
-///
-/// # 注意
-/// - BomRowは生成せず、元データ（rows）をそのまま保持
-/// - 空セルも含めて全データを保存
-/// - エラーがあっても処理は継続（エラーリストに記録）
+const MAX_SAMPLE_ROWS: usize = 50;
+
 pub fn build_bom_rows(rows: Vec<Vec<String>>) -> Result<ParseResult, AppError> {
-    // ------------------------------------------------------------------------
-    // ステップ1: ヘッダー行とデータ行の分離
-    // ------------------------------------------------------------------------
-    let mut header_row: Option<(usize, Vec<String>)> = None;
-    let mut data_rows: Vec<(usize, Vec<String>)> = Vec::new();
-
-    for (idx, row) in rows.into_iter().enumerate() {
-        if header_row.is_none() {
-            // 最初の非空白行をヘッダーとする
-            if is_blank_row(&row) {
-                continue;
-            }
-            header_row = Some((idx, row));
-            continue;
-        }
-
-        // ヘッダー行の後は、空行も含めて全て読み込む
-        data_rows.push((idx, row));
+    if rows.is_empty() {
+        return Err(AppError::new(
+            "BOMデータ内に有効な行が見つかりませんでした。",
+        ));
     }
 
-    // 末尾の空白行を削除
-    while let Some((_, last_row)) = data_rows.last() {
-        if is_blank_row(last_row) {
-            data_rows.pop();
+    let mut indexed_rows: Vec<(usize, Vec<String>)> = rows.into_iter().enumerate().collect();
+
+    // 先頭の空行を除去
+    while let Some((_, row)) = indexed_rows.first() {
+        if is_blank_row(row) {
+            indexed_rows.remove(0);
         } else {
             break;
         }
     }
 
-    let (_header_index, header) = header_row
-        .ok_or_else(|| AppError::new("BOMデータ内に有効なヘッダー行が見つかりませんでした。"))?;
+    if indexed_rows.is_empty() {
+        return Err(AppError::new(
+            "BOMデータ内に有効な行が見つかりませんでした。",
+        ));
+    }
 
-    // ------------------------------------------------------------------------
-    // ステップ2: 列メタデータの生成
-    // ------------------------------------------------------------------------
-    let columns: Vec<ColumnMeta> = header
+    let mut errors: Vec<String> = Vec::new();
+    let mut structured_errors: Vec<ParseError> = Vec::new();
+
+    let detected_start = detect_data_start(&indexed_rows);
+    let data_start = match detected_start {
+        Some(idx) => idx,
+        None => {
+            let message =
+                "開始行が判定できませんでした。編集モードで指定してください。".to_string();
+            push_warning(&mut errors, &mut structured_errors, message, None, None);
+            0
+        }
+    };
+
+    // 候補ヘッダー行を抽出（データ開始直前行で、明らかにデータ行でない場合のみ）
+    let header_row = if data_start > 0 {
+        let candidate = indexed_rows[data_start - 1].clone();
+        if is_potential_header(&candidate.1) {
+            Some(candidate)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let data_rows = &indexed_rows[data_start..];
+    if data_rows.is_empty() {
+        return Err(AppError::new("データ行が見つかりませんでした。"));
+    }
+
+    let max_columns = data_rows
+        .iter()
+        .map(|(_, row)| row.len())
+        .chain(header_row.as_ref().map(|(_, row)| row.len()))
+        .max()
+        .unwrap_or(0);
+
+    // 列メタデータを生成
+    let mut headers: Vec<String> = Vec::with_capacity(max_columns);
+    for col_idx in 0..max_columns {
+        let name = header_row
+            .as_ref()
+            .and_then(|(_, row)| row.get(col_idx))
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| format!("Column {}", col_idx + 1));
+        headers.push(name.clone());
+    }
+
+    let columns: Vec<ColumnMeta> = headers
         .iter()
         .enumerate()
         .map(|(idx, name)| ColumnMeta {
@@ -72,287 +88,68 @@ pub fn build_bom_rows(rows: Vec<Vec<String>>) -> Result<ParseResult, AppError> {
         })
         .collect();
 
-    // ------------------------------------------------------------------------
-    // ステップ3: 列の役割を自動推測
-    // ------------------------------------------------------------------------
+    let mut raw_rows: Vec<Vec<String>> = Vec::with_capacity(data_rows.len());
+    let mut row_numbers: Vec<usize> = Vec::with_capacity(data_rows.len());
 
-    // ヘッダー名を正規化（空白除去、小文字化）
-    let normalized_headers: Vec<String> = header.iter().map(|h| normalize_header(h)).collect();
+    for (line_number, row) in data_rows.iter() {
+        raw_rows.push(row.clone());
+        row_numbers.push(line_number + 1);
+    }
 
-    // 各役割の列を探す
-    let ref_indices: Vec<usize> = normalized_headers
-        .iter()
-        .enumerate()
-        .filter(|(_, name)| matches_ref_header(name))
-        .map(|(idx, _)| idx)
-        .collect();
-
-    let part_indices: Vec<usize> = normalized_headers
-        .iter()
-        .enumerate()
-        .filter(|(_, name)| matches_part_no_header(name))
-        .map(|(idx, _)| idx)
-        .collect();
-
-    let value_indices: Vec<usize> = normalized_headers
-        .iter()
-        .enumerate()
-        .filter(|(_, name)| matches_value_header(name))
-        .map(|(idx, _)| idx)
-        .collect();
-
-    let manufacturer_indices: Vec<usize> = normalized_headers
-        .iter()
-        .enumerate()
-        .filter(|(_, name)| matches_manufacturer_header(name))
-        .map(|(idx, _)| idx)
-        .collect();
-
-    // column_roles: HashMap<役割名, Vec<列ID>>
+    let analysis = analyze_columns(data_rows, max_columns);
     let mut column_roles: HashMap<String, Vec<String>> = HashMap::new();
+    let mut priority_order: Vec<usize> = Vec::new();
 
-    if !ref_indices.is_empty() {
-        column_roles.insert(
-            "ref".to_string(),
-            ref_indices
-                .iter()
-                .map(|idx| format!("col-{}", idx))
-                .collect(),
-        );
-    }
+    let assigned_refs = assign_role(
+        "Reference",
+        "ref",
+        &analysis.reference_candidates,
+        &mut column_roles,
+        &mut errors,
+        &mut structured_errors,
+        &mut priority_order,
+    );
+    let assigned_parts = assign_role(
+        "部品型番",
+        "part_no",
+        &analysis.part_candidates,
+        &mut column_roles,
+        &mut errors,
+        &mut structured_errors,
+        &mut priority_order,
+    );
+    assign_role(
+        "メーカー",
+        "manufacturer",
+        &analysis.manufacturer_candidates,
+        &mut column_roles,
+        &mut errors,
+        &mut structured_errors,
+        &mut priority_order,
+    );
 
-    if !part_indices.is_empty() {
-        column_roles.insert(
-            "part_no".to_string(),
-            part_indices
-                .iter()
-                .map(|idx| format!("col-{}", idx))
-                .collect(),
-        );
-    }
+    let mut column_order: Vec<String> = Vec::with_capacity(max_columns);
+    let mut used = HashSet::new();
 
-    if !value_indices.is_empty() {
-        column_roles.insert(
-            "value".to_string(),
-            value_indices
-                .iter()
-                .map(|idx| format!("col-{}", idx))
-                .collect(),
-        );
-    }
-
-    if !manufacturer_indices.is_empty() {
-        column_roles.insert(
-            "manufacturer".to_string(),
-            manufacturer_indices
-                .iter()
-                .map(|idx| format!("col-{}", idx))
-                .collect(),
-        );
-    }
-
-    // ------------------------------------------------------------------------
-    // ステップ4: 列の表示順序を決定
-    // ------------------------------------------------------------------------
-
-    // 優先順位: ref → part_no → manufacturer → value → その他
-    let mut column_order: Vec<String> = Vec::new();
-    let mut used_indices = HashSet::new();
-
-    // 1. Reference列を先頭に
-    for idx in &ref_indices {
-        column_order.push(format!("col-{}", idx));
-        used_indices.insert(*idx);
-    }
-
-    // 2. Part_No列
-    for idx in &part_indices {
-        column_order.push(format!("col-{}", idx));
-        used_indices.insert(*idx);
-    }
-
-    // 3. Manufacturer列
-    for idx in &manufacturer_indices {
-        column_order.push(format!("col-{}", idx));
-        used_indices.insert(*idx);
-    }
-
-    // 4. Value列
-    for idx in &value_indices {
-        column_order.push(format!("col-{}", idx));
-        used_indices.insert(*idx);
-    }
-
-    // 5. その他の列（元の順序を維持）
-    for (idx, _) in columns.iter().enumerate() {
-        if !used_indices.contains(&idx) {
+    for idx in &priority_order {
+        if used.insert(*idx) {
             column_order.push(format!("col-{}", idx));
         }
     }
 
-    // ------------------------------------------------------------------------
-    // ステップ6: データのバリデーション
-    // ------------------------------------------------------------------------
-
-    let mut errors = Vec::new();
-    let mut structured_errors = Vec::new();
-    let mut row_numbers = Vec::new();
-    let mut seen_refs: HashSet<String> = HashSet::new();
-
-    // 重要な列が見つからない場合は警告
-    if ref_indices.is_empty() {
-        let msg = "Reference列を自動判定できませんでした。編集モードで列の役割を指定してください。"
-            .to_string();
-        errors.insert(0, msg.clone());
-        structured_errors.push(ParseError {
-            message: msg,
-            row: None,
-            column: None,
-            severity: "warning".to_string(),
-        });
+    for idx in 0..max_columns {
+        if used.insert(idx) {
+            column_order.push(format!("col-{}", idx));
+        }
     }
 
-    if part_indices.is_empty() {
-        let msg = "部品型番列を自動判定できませんでした。編集モードで列の役割を指定してください。"
-            .to_string();
-        errors.insert(0, msg.clone());
-        structured_errors.push(ParseError {
-            message: msg,
-            row: None,
-            column: None,
-            severity: "warning".to_string(),
-        });
-    }
-
-    if value_indices.is_empty() {
-        let msg = "Value列を自動判定できませんでした。編集モードで列の役割を指定してください。"
-            .to_string();
-        errors.insert(0, msg.clone());
-        structured_errors.push(ParseError {
-            message: msg,
-            row: None,
-            column: None,
-            severity: "warning".to_string(),
-        });
-    }
-
-    let mut raw_rows: Vec<Vec<String>> = Vec::new();
-
-    for (row_index, row) in data_rows {
-        let line_number = row_index + 1; // 0-based -> 1-based
-
-        // Reference列のデータチェック
-        for &ref_idx in &ref_indices {
-            if row.len() <= ref_idx {
-                let msg = format!("{line_number}行目: Reference列のデータが不足しています。");
-                errors.push(msg.clone());
-                structured_errors.push(ParseError {
-                    message: msg,
-                    row: Some(line_number),
-                    column: Some(ref_idx),
-                    severity: "error".to_string(),
-                });
-                continue;
-            }
-        }
-
-        // Part_No列のデータチェック
-        for &part_idx in &part_indices {
-            if row.len() <= part_idx {
-                let msg = format!("{line_number}行目: 部品型番列のデータが不足しています。");
-                errors.push(msg.clone());
-                structured_errors.push(ParseError {
-                    message: msg,
-                    row: Some(line_number),
-                    column: Some(part_idx),
-                    severity: "error".to_string(),
-                });
-                continue;
-            }
-        }
-
-        // 無効文字のチェック
-        for (col_idx, cell) in row.iter().enumerate() {
-            if let Some(invalid_char) = find_invalid_char(cell) {
-                let msg = format!(
-                    "{line_number}行目(列{}): 無効な文字 '{}' を検出しました。",
-                    col_idx + 1,
-                    invalid_char
-                );
-                errors.push(msg.clone());
-                structured_errors.push(ParseError {
-                    message: msg,
-                    row: Some(line_number),
-                    column: Some(col_idx),
-                    severity: "warning".to_string(),
-                });
-            }
-        }
-
-        // Reference値の取得（複数列の場合は結合）
-        let reference_values: Vec<String> = ref_indices
-            .iter()
-            .filter_map(|&idx| row.get(idx))
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())
-            .collect();
-
-        let reference = reference_values.join(", ");
-
-        // Referenceが空の場合は警告
-        if reference.is_empty() && !ref_indices.is_empty() {
-            let msg = format!("{line_number}行目: Referenceが空です。");
-            errors.push(msg.clone());
-            structured_errors.push(ParseError {
-                message: msg,
-                row: Some(line_number),
-                column: ref_indices.first().copied(),
-                severity: "warning".to_string(),
-            });
-        } else if !reference.is_empty() {
-            // 重複チェック（警告のみ）
-            if !seen_refs.insert(reference.clone()) {
-                let msg = format!(
-                    "{line_number}行目: Reference '{}' が重複しています。",
-                    reference
-                );
-                errors.push(msg.clone());
-                structured_errors.push(ParseError {
-                    message: msg,
-                    row: Some(line_number),
-                    column: ref_indices.first().copied(),
-                    severity: "warning".to_string(),
-                });
-            }
-        }
-
-        // Part_Noの空欄チェック
-        let part_no_empty = part_indices
-            .iter()
-            .all(|&idx| row.get(idx).map(|v| v.trim().is_empty()).unwrap_or(true));
-
-        if !part_indices.is_empty() && part_no_empty {
-            let msg = format!(
-                "{line_number}行目: 部品型番が空です (Reference: {}).",
-                reference
-            );
-            errors.push(msg.clone());
-            structured_errors.push(ParseError {
-                message: msg,
-                row: Some(line_number),
-                column: part_indices.first().copied(),
-                severity: "warning".to_string(),
-            });
-        }
-
-        // 元データをそのまま保存
-        raw_rows.push(row);
-        row_numbers.push(line_number);
-    }
-
-    // ------------------------------------------------------------------------
-    // ステップ7: ParseResultの構築
-    // ------------------------------------------------------------------------
+    validate_rows(
+        data_rows,
+        &assigned_refs,
+        &assigned_parts,
+        &mut errors,
+        &mut structured_errors,
+    );
 
     Ok(ParseResult {
         rows: raw_rows,
@@ -363,14 +160,381 @@ pub fn build_bom_rows(rows: Vec<Vec<String>>) -> Result<ParseResult, AppError> {
         #[allow(deprecated)]
         guessed_roles: HashMap::new(),
         errors,
-        headers: header,
+        headers,
         columns,
         row_numbers,
         structured_errors: Some(structured_errors),
     })
 }
 
-/// 行が完全に空白かチェック
+fn detect_data_start(rows: &[(usize, Vec<String>)]) -> Option<usize> {
+    for (idx, (_, row)) in rows.iter().enumerate() {
+        if is_data_row(row) {
+            return Some(idx);
+        }
+    }
+    None
+}
+
+fn is_data_row(row: &[String]) -> bool {
+    let mut reference_like = 0;
+    let mut non_empty = 0;
+    for value in row {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        non_empty += 1;
+        if looks_like_reference(trimmed) {
+            reference_like += 1;
+        }
+    }
+    non_empty > 0 && reference_like > 0
+}
+
+fn is_potential_header(row: &[String]) -> bool {
+    let mut non_empty = 0;
+    for value in row {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        non_empty += 1;
+        if looks_like_reference(trimmed) {
+            return false;
+        }
+    }
+    non_empty > 0
+}
+
+struct ColumnAnalysis {
+    reference_candidates: Vec<usize>,
+    part_candidates: Vec<usize>,
+    manufacturer_candidates: Vec<usize>,
+}
+
+fn analyze_columns(rows: &[(usize, Vec<String>)], max_columns: usize) -> ColumnAnalysis {
+    let mut stats = vec![ColumnStats::default(); max_columns];
+
+    for (_, row) in rows.iter().take(MAX_SAMPLE_ROWS) {
+        for col_idx in 0..max_columns {
+            let value = row.get(col_idx).map(|s| s.trim()).unwrap_or("");
+            if value.is_empty() {
+                continue;
+            }
+            let stat = &mut stats[col_idx];
+            stat.non_empty += 1;
+
+            if looks_like_reference(value) {
+                stat.reference_like += 1;
+            }
+            if looks_like_part_number(value) {
+                stat.part_like += 1;
+            }
+            if looks_like_manufacturer(value) {
+                stat.manufacturer_like += 1;
+            }
+        }
+    }
+
+    let reference_candidates = stats
+        .iter()
+        .enumerate()
+        .filter(|(_, stat)| stat.reference_like > 0 && stat.reference_like * 2 >= stat.non_empty)
+        .map(|(idx, _)| idx)
+        .collect::<Vec<_>>();
+
+    let part_candidates = stats
+        .iter()
+        .enumerate()
+        .filter(|(_, stat)| stat.part_like > 0 && stat.part_like * 2 >= stat.non_empty)
+        .map(|(idx, _)| idx)
+        .collect::<Vec<_>>();
+
+    let manufacturer_candidates = stats
+        .iter()
+        .enumerate()
+        .filter(|(_, stat)| {
+            stat.manufacturer_like > 0 && stat.manufacturer_like * 2 >= stat.non_empty
+        })
+        .map(|(idx, _)| idx)
+        .collect::<Vec<_>>();
+
+    ColumnAnalysis {
+        reference_candidates,
+        part_candidates,
+        manufacturer_candidates,
+    }
+}
+
+#[derive(Default, Clone)]
+struct ColumnStats {
+    non_empty: usize,
+    reference_like: usize,
+    part_like: usize,
+    manufacturer_like: usize,
+}
+
+fn assign_role(
+    label: &str,
+    role_key: &str,
+    candidates: &[usize],
+    column_roles: &mut HashMap<String, Vec<String>>,
+    errors: &mut Vec<String>,
+    structured_errors: &mut Vec<ParseError>,
+    priority_order: &mut Vec<usize>,
+) -> Vec<usize> {
+    match candidates.len() {
+        0 => {
+            let message =
+                format!("{label}列を自動判定できませんでした。編集モードで指定してください。");
+            push_warning(errors, structured_errors, message, None, None);
+            Vec::new()
+        }
+        1 => {
+            let idx = candidates[0];
+            column_roles.insert(role_key.to_string(), vec![format!("col-{idx}")]);
+            priority_order.push(idx);
+            vec![idx]
+        }
+        _ => {
+            let human_candidates = candidates
+                .iter()
+                .map(|idx| format!("Column {}", idx + 1))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let message = format!(
+                "{label}列の候補が複数見つかりました（{human_candidates}）。編集モードで指定してください。"
+            );
+            push_warning(errors, structured_errors, message, None, None);
+            Vec::new()
+        }
+    }
+}
+
+fn validate_rows(
+    rows: &[(usize, Vec<String>)],
+    ref_indices: &[usize],
+    part_indices: &[usize],
+    errors: &mut Vec<String>,
+    structured_errors: &mut Vec<ParseError>,
+) {
+    let mut seen_refs: HashSet<String> = HashSet::new();
+
+    for (line_number_zero, row) in rows {
+        let line_number = line_number_zero + 1;
+
+        for (col_idx, cell) in row.iter().enumerate() {
+            if let Some(invalid_char) = find_invalid_char(cell) {
+                let message = format!(
+                    "{line_number}行目(列{}): 無効な文字 '{}' を検出しました。",
+                    col_idx + 1,
+                    invalid_char
+                );
+                push_warning(
+                    errors,
+                    structured_errors,
+                    message,
+                    Some(line_number),
+                    Some(col_idx),
+                );
+            }
+        }
+
+        if !ref_indices.is_empty() {
+            let mut reference_values: Vec<String> = Vec::new();
+            for &idx in ref_indices {
+                if let Some(value) = row.get(idx) {
+                    let trimmed = value.trim();
+                    if trimmed.is_empty() {
+                        let message =
+                            format!("{line_number}行目: Reference列のデータが不足しています。");
+                        push_error(
+                            errors,
+                            structured_errors,
+                            message,
+                            Some(line_number),
+                            Some(idx),
+                        );
+                        continue;
+                    }
+                    reference_values.push(trimmed.to_string());
+                } else {
+                    let message =
+                        format!("{line_number}行目: Reference列のデータが不足しています。");
+                    push_error(
+                        errors,
+                        structured_errors,
+                        message,
+                        Some(line_number),
+                        Some(idx),
+                    );
+                }
+            }
+
+            if !reference_values.is_empty() {
+                let reference = reference_values.join(", ");
+                if reference.is_empty() {
+                    let message = format!("{line_number}行目: Referenceが空です。");
+                    push_warning(
+                        errors,
+                        structured_errors,
+                        message,
+                        Some(line_number),
+                        ref_indices.first().copied(),
+                    );
+                } else if !seen_refs.insert(reference.clone()) {
+                    let message =
+                        format!("{line_number}行目: Reference '{reference}' が重複しています。");
+                    push_warning(
+                        errors,
+                        structured_errors,
+                        message,
+                        Some(line_number),
+                        ref_indices.first().copied(),
+                    );
+                }
+            }
+        }
+
+        if !part_indices.is_empty() {
+            let part_is_empty = part_indices
+                .iter()
+                .all(|&idx| row.get(idx).map(|v| v.trim().is_empty()).unwrap_or(true));
+            if part_is_empty {
+                let message =
+                    format!("{line_number}行目: 部品型番が空です。編集モードで指定してください。");
+                push_warning(
+                    errors,
+                    structured_errors,
+                    message,
+                    Some(line_number),
+                    part_indices.first().copied(),
+                );
+            }
+        }
+    }
+}
+
+fn looks_like_reference(value: &str) -> bool {
+    let tokens: Vec<&str> = value.split(|c| c == ',' || c == ';').collect();
+    let mut matched_any = false;
+
+    for token in tokens {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+
+        let mut chars = token.chars();
+        let Some(first) = chars.next() else {
+            continue;
+        };
+        if !first.is_ascii_alphabetic() {
+            return false;
+        }
+
+        let mut has_digit = false;
+        for c in chars {
+            if c.is_ascii_digit() {
+                has_digit = true;
+            }
+            if !(c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '/') {
+                return false;
+            }
+        }
+
+        if !has_digit {
+            return false;
+        }
+        matched_any = true;
+    }
+
+    matched_any
+}
+
+fn looks_like_part_number(value: &str) -> bool {
+    if value.is_empty() || value.contains(char::is_whitespace) {
+        return false;
+    }
+
+    let mut has_letter = false;
+    let mut has_digit = false;
+
+    for c in value.chars() {
+        if c.is_ascii_alphanumeric() {
+            if c.is_ascii_digit() {
+                has_digit = true;
+            } else {
+                has_letter = true;
+            }
+        } else if c == '-' || c == '_' || c == '/' || c == '.' {
+            continue;
+        } else {
+            return false;
+        }
+    }
+
+    has_letter && has_digit
+}
+
+fn looks_like_manufacturer(value: &str) -> bool {
+    if value.is_empty() {
+        return false;
+    }
+    if looks_like_part_number(value) {
+        return false;
+    }
+
+    let mut letters = 0;
+    let mut digits = 0;
+    let mut spaces = 0;
+
+    for c in value.chars() {
+        if c.is_ascii_alphabetic() {
+            letters += 1;
+        } else if c.is_ascii_digit() {
+            digits += 1;
+        } else if c.is_whitespace() {
+            spaces += 1;
+        }
+    }
+
+    letters > 0 && (spaces > 0 || digits == 0 || letters >= digits)
+}
+
+fn push_warning(
+    errors: &mut Vec<String>,
+    structured: &mut Vec<ParseError>,
+    message: String,
+    row: Option<usize>,
+    column: Option<usize>,
+) {
+    errors.push(message.clone());
+    structured.push(ParseError {
+        message,
+        row,
+        column,
+        severity: "warning".to_string(),
+    });
+}
+
+fn push_error(
+    errors: &mut Vec<String>,
+    structured: &mut Vec<ParseError>,
+    message: String,
+    row: Option<usize>,
+    column: Option<usize>,
+) {
+    errors.push(message.clone());
+    structured.push(ParseError {
+        message,
+        row,
+        column,
+        severity: "error".to_string(),
+    });
+}
+
 fn is_blank_row(row: &[String]) -> bool {
     row.iter().all(|cell| cell.trim().is_empty())
 }

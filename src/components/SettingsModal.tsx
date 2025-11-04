@@ -23,8 +23,6 @@ export interface SettingsModalProps {
   onOpenChange: (open: boolean) => void;
   onTabChange: (tab: SettingsTabKey) => void;
   projectSettings: ProjectSettings;
-  onAutoIntervalChange: (value: number) => void;
-  onAutoMaxEntriesChange: (value: number) => void;
   onMaxEditRowsChange?: (value: number) => void;
   onDefaultPreprocessChange: (option: keyof DefaultPreprocessOptions, value: boolean) => void;
   themeColors: ThemeColors;
@@ -50,8 +48,6 @@ export function SettingsModal({
   onOpenChange,
   onTabChange,
   projectSettings,
-  onAutoIntervalChange,
-  onAutoMaxEntriesChange,
   onMaxEditRowsChange,
   onDefaultPreprocessChange,
   themeColors,
@@ -77,26 +73,6 @@ export function SettingsModal({
     }),
     [projectSettings.defaultPreprocess]
   );
-
-  const handleIntervalChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = clampNumber(
-      event.target.value,
-      projectSettings.autoIntervalMinutes,
-      1,
-      180
-    );
-    onAutoIntervalChange(nextValue);
-  };
-
-  const handleMaxEntriesChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = clampNumber(
-      event.target.value,
-      projectSettings.autoMaxEntries,
-      1,
-      100
-    );
-    onAutoMaxEntriesChange(nextValue);
-  };
 
   const handleMaxEditRowsChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (!onMaxEditRowsChange) return;
@@ -170,37 +146,6 @@ export function SettingsModal({
               <Tabs.Content value="projects">
                 <div className="modal-body settings-body">
                   <section className="settings-panel" id="settings-panel-projects">
-                    <div className="settings-group">
-                      <h3>自動保存の間隔</h3>
-                      <p className="settings-description">
-                        指定した間隔ごとに自動保存を実行します（1〜180分）
-                      </p>
-                      <div className="settings-inline-inputs">
-                        <input
-                          type="number"
-                          min={1}
-                          max={180}
-                          step={1}
-                          value={projectSettings.autoIntervalMinutes}
-                          onChange={handleIntervalChange}
-                        />
-                        <span>分</span>
-                      </div>
-                    </div>
-                    <div className="settings-group">
-                      <h3>自動保存の保持数</h3>
-                      <p className="settings-description">
-                        最新の自動保存を何件残すか指定します（最大100件）
-                      </p>
-                      <input
-                        type="number"
-                        min={1}
-                        max={100}
-                        step={1}
-                        value={projectSettings.autoMaxEntries}
-                        onChange={handleMaxEntriesChange}
-                      />
-                    </div>
                     <div className="settings-group">
                       <h3>最大編集行数</h3>
                       <p className="settings-description">

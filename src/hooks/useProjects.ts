@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ColumnRole, ProjectPayload, ProjectRecord, ProjectSettings } from '../types';
+import { useCallback, useEffect, useState } from 'react';
+import type { ColumnRole, ProjectPayload, ProjectRecord } from '../types';
 import {
   getStoredProjects,
   saveStoredProjects,
@@ -112,21 +112,12 @@ export interface UseProjectsResult {
   renameProject: (projectId: string, name: string) => boolean;
   reorderProject: (projectId: string, targetIndex: number) => void;
   toggleFavorite: (projectId: string) => void;
-  startAutoSave: (intervalMinutes?: number) => void;
-  stopAutoSave: () => void;
-  isAutoSaving: boolean;
-  projectSettingsRef: React.MutableRefObject<ProjectSettings | null>;
 }
-
-const DEFAULT_INTERVAL_MINUTES = 5;
 
 export function useProjects(): UseProjectsResult {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
   const [favoriteProjects, setFavoriteProjectsState] = useState<Set<string>>(new Set());
-  const autoSaveTimerRef = useRef<number | null>(null);
-  const settingsRef = useRef<ProjectSettings | null>(null);
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
 
   const setActiveProject = useCallback((projectId: string | null) => {
     setActiveProjectIdState(projectId);
@@ -159,13 +150,6 @@ export function useProjects(): UseProjectsResult {
       setActiveProject(null);
     }
   }, [setActiveProject]);
-
-  useEffect(() => () => {
-    if (autoSaveTimerRef.current !== null) {
-      window.clearInterval(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-    }
-  }, []);
 
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
@@ -464,30 +448,6 @@ export function useProjects(): UseProjectsResult {
     }
   }, []);
 
-  const stopAutoSave = useCallback(() => {
-    if (autoSaveTimerRef.current !== null) {
-      window.clearInterval(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-      setIsAutoSaving(false);
-      logActivity('自動保存を停止しました。');
-    }
-  }, []);
-
-  const startAutoSave = useCallback(
-    (intervalMinutes?: number) => {
-      const minutes = intervalMinutes && Number.isFinite(intervalMinutes) ? intervalMinutes : settingsRef.current?.autoIntervalMinutes ?? DEFAULT_INTERVAL_MINUTES;
-      const interval = Math.max(1, Math.min(180, Math.round(minutes))) * 60_000;
-      stopAutoSave();
-      autoSaveTimerRef.current = window.setInterval(() => {
-        saveProject();
-      }, interval);
-      setIsAutoSaving(true);
-      const intervalLabel = Math.round(interval / 60_000);
-      logActivity(`自動保存を開始しました（${intervalLabel}分間隔）`);
-    },
-    [saveProject, stopAutoSave]
-  );
-
   return {
     projects,
     activeProjectId,
@@ -498,10 +458,6 @@ export function useProjects(): UseProjectsResult {
     deleteProject,
     renameProject,
     reorderProject,
-    toggleFavorite,
-    startAutoSave,
-    stopAutoSave,
-    isAutoSaving,
-    projectSettingsRef: settingsRef
+    toggleFavorite
   };
 }
