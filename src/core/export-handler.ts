@@ -7,11 +7,19 @@
 import { save } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import type { ColumnMeta, DiffRow, ParseResult } from '../types';
-import { datasetState, currentDiffs, mergedBom } from '../state/app-state';
+import { datasetState } from '../state/app-state';
 import { saveSessionToFile } from '../services';
 import { setProcessing, logActivity } from '../utils';
 
 export type ExportSource = 'comparison' | 'replacement' | 'bom_a' | 'bom_b';
+
+/**
+ * エクスポートコンテキスト（比較/置き換え結果データ）
+ */
+export interface ExportContext {
+  currentDiffs: DiffRow[];
+  mergedBom: ParseResult | null;
+}
 
 const SOURCE_LABEL: Record<ExportSource, string> = {
   comparison: '比較結果',
@@ -114,8 +122,8 @@ function labelDiffStatus(status: string | null | undefined): string {
   return status;
 }
 
-function buildComparisonParseResult(): ParseResult | null {
-  if (!currentDiffs || currentDiffs.length === 0) {
+function buildComparisonParseResult(diffs: DiffRow[]): ParseResult | null {
+  if (!diffs || diffs.length === 0) {
     return null;
   }
 
@@ -136,7 +144,7 @@ function buildComparisonParseResult(): ParseResult | null {
   const statusColumnId = 'status';
   const changedColumnId = 'changed_columns';
 
-  currentDiffs.forEach((diff: DiffRow, index: number) => {
+  diffs.forEach((diff: DiffRow, index: number) => {
     let sourceRow: string[] | null = null;
     let sourceStructure: ParseStructure | null = null;
 
@@ -187,19 +195,23 @@ function buildComparisonParseResult(): ParseResult | null {
   };
 }
 
-function getParseResultForSource(source: ExportSource, format?: 'csv' | 'netlist'): ParseResult | null {
+function getParseResultForSource(
+  source: ExportSource,
+  context: ExportContext,
+  format?: 'csv' | 'netlist'
+): ParseResult | null {
   switch (source) {
     case 'comparison':
       // CSV形式の場合はステータス列を含む比較結果を返す
       // ネットリスト形式の場合は元のBOM Bを返す（差分情報は不要）
       if (format === 'csv') {
-        return buildComparisonParseResult();
+        return buildComparisonParseResult(context.currentDiffs);
       } else {
         return datasetState.b.parseResult ? cloneParseResult(datasetState.b.parseResult) :
                datasetState.a.parseResult ? cloneParseResult(datasetState.a.parseResult) : null;
       }
     case 'replacement':
-      return mergedBom ? cloneParseResult(mergedBom) : null;
+      return context.mergedBom ? cloneParseResult(context.mergedBom) : null;
     case 'bom_a':
       return datasetState.a.parseResult ? cloneParseResult(datasetState.a.parseResult) : null;
     case 'bom_b':
@@ -227,8 +239,8 @@ function getExportFilename(source: ExportSource): string {
 /**
  * CSV形式でエクスポート
  */
-export async function exportToCSV(source: ExportSource): Promise<void> {
-  const data = getParseResultForSource(source, 'csv');
+export async function exportToCSV(source: ExportSource, context: ExportContext): Promise<void> {
+  const data = getParseResultForSource(source, context, 'csv');
   if (!data || data.rows.length === 0) {
     alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
     return;
@@ -268,8 +280,8 @@ export async function exportToCSV(source: ExportSource): Promise<void> {
 /**
  * PADS-ECO形式でエクスポート
  */
-export async function exportToECO(source: ExportSource): Promise<void> {
-  const data = getParseResultForSource(source, 'netlist');
+export async function exportToECO(source: ExportSource, context: ExportContext): Promise<void> {
+  const data = getParseResultForSource(source, context, 'netlist');
   if (!data || data.rows.length === 0) {
     alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
     return;
@@ -308,8 +320,8 @@ export async function exportToECO(source: ExportSource): Promise<void> {
 /**
  * CCF形式でエクスポート
  */
-export async function exportToCCF(source: ExportSource): Promise<void> {
-  const data = getParseResultForSource(source, 'netlist');
+export async function exportToCCF(source: ExportSource, context: ExportContext): Promise<void> {
+  const data = getParseResultForSource(source, context, 'netlist');
   if (!data || data.rows.length === 0) {
     alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
     return;
@@ -348,8 +360,8 @@ export async function exportToCCF(source: ExportSource): Promise<void> {
 /**
  * MSF形式でエクスポート
  */
-export async function exportToMSF(source: ExportSource): Promise<void> {
-  const data = getParseResultForSource(source, 'netlist');
+export async function exportToMSF(source: ExportSource, context: ExportContext): Promise<void> {
+  const data = getParseResultForSource(source, context, 'netlist');
   if (!data || data.rows.length === 0) {
     alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
     return;

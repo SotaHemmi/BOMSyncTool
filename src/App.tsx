@@ -27,16 +27,18 @@ import { deriveColumns } from './components/DatasetCard';
 import type { ExportGroupConfig } from './components/exportTypes';
 import { formatDateLabel } from './utils';
 import type { PreprocessOptions } from './core/preprocessing';
-import { datasetState, setCurrentDiffs, setMergedBom } from './state/app-state';
+import { datasetState } from './state/app-state';
 import {
   exportToCCF,
   exportToCSV,
   exportToECO,
   exportToMSF,
-  type ExportSource
+  type ExportSource,
+  type ExportContext
 } from './core/export-handler';
 import { cloneRows } from './utils/data-utils';
 import { GearIcon } from './components/icons';
+import { useAppState } from './contexts/AppStateContext';
 import './styles.css';
 
 const toPreprocessOptions = (options: EditPreprocessOptions): PreprocessOptions => ({
@@ -68,6 +70,7 @@ function App() {
   const settings = useSettings();
   const dictionary = useDictionary();
   const activityLog = useActivityLog();
+  const { currentDiffs, setCurrentDiffs, mergedBom, setMergedBom } = useAppState();
 
   const activeProject = useMemo(
     () =>
@@ -606,11 +609,16 @@ function App() {
     []
   );
 
+  const exportContext = useMemo<ExportContext>(
+    () => ({ currentDiffs, mergedBom }),
+    [currentDiffs, mergedBom]
+  );
+
   const makeExportHandler = useCallback(
-    (source: ExportSource, exporter: (source: ExportSource) => Promise<void>) => () => {
-      void runExport(() => exporter(source));
+    (source: ExportSource, exporter: (source: ExportSource, context: ExportContext) => Promise<void>) => () => {
+      void runExport(() => exporter(source, exportContext));
     },
-    [runExport]
+    [runExport, exportContext]
   );
 
   const hasComparisonExport = diffResults !== null && diffResults.length > 0;
@@ -693,9 +701,9 @@ function App() {
     },
     applyDefaultPreprocess: () => handleApplyDefaultPreprocess(bomA.applyPreprocess),
     openEdit: () => handleOpenEdit('a'),
-    exportECO: () => runExport(() => exportToECO('bom_a')),
-    exportCCF: () => runExport(() => exportToCCF('bom_a')),
-    exportMSF: () => runExport(() => exportToMSF('bom_a')),
+    exportECO: () => runExport(() => exportToECO('bom_a', exportContext)),
+    exportCCF: () => runExport(() => exportToCCF('bom_a', exportContext)),
+    exportMSF: () => runExport(() => exportToMSF('bom_a', exportContext)),
     handleError: (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       alert(`BOM A: ${message}`);
@@ -714,7 +722,8 @@ function App() {
     handleOpenEdit,
     loadingDatasets.a,
     projects.saveProject,
-    runExport
+    runExport,
+    exportContext
   ]);
 
   const datasetAdapterB = useMemo(() => ({
@@ -734,9 +743,9 @@ function App() {
     },
     applyDefaultPreprocess: () => handleApplyDefaultPreprocess(bomB.applyPreprocess),
     openEdit: () => handleOpenEdit('b'),
-    exportECO: () => runExport(() => exportToECO('bom_b')),
-    exportCCF: () => runExport(() => exportToCCF('bom_b')),
-    exportMSF: () => runExport(() => exportToMSF('bom_b')),
+    exportECO: () => runExport(() => exportToECO('bom_b', exportContext)),
+    exportCCF: () => runExport(() => exportToCCF('bom_b', exportContext)),
+    exportMSF: () => runExport(() => exportToMSF('bom_b', exportContext)),
     handleError: (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       alert(`BOM B: ${message}`);
@@ -755,7 +764,8 @@ function App() {
     handleOpenEdit,
     loadingDatasets.b,
     projects.saveProject,
-    runExport
+    runExport,
+    exportContext
   ]);
 
   const dictionaryProps: DictionaryTabProps = useMemo(
@@ -797,8 +807,8 @@ function App() {
         <div className="brand">
           <h1>
             BOMSyncTool
-            <span className="brand-version" aria-label="version 0.4.1">
-              v0.4.1
+            <span className="brand-version" aria-label="version 0.4.2">
+              v0.4.2
             </span>
           </h1>
         </div>

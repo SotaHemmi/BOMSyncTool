@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react';
+import { useMemo, useState, useEffect, type CSSProperties } from 'react';
 import type { DiffRow, ParseResult } from '../types';
 import { getPartNo, getColumnIndexById } from '../utils/bom';
 import { deriveColumns } from './DatasetCard';
@@ -160,8 +160,14 @@ export function CompareResults({
   replacementResult = null,
   replacementStatuses = null
 }: CompareResultsProps) {
+  const [showAllRows, setShowAllRows] = useState(false);
   const isReplacementMode = mode === 'replacement';
   const isComparisonMode = !isReplacementMode;
+
+  // フィルター変更時に表示をリセット
+  useEffect(() => {
+    setShowAllRows(false);
+  }, [filter]);
 
   const counts = useMemo(() => computeCounts(results), [results]);
   const filteredResults = useMemo(() => filterResults(results, filter), [results, filter]);
@@ -242,7 +248,9 @@ export function CompareResults({
     return indices.filter(index => shouldInclude(replacementStatusesArray[index] ?? 'other'));
   }, [filter, replacementResult, replacementStatusesArray]);
   const replacementDisplayLimit = 20;
-  const replacementDisplayIndices = replacementFilteredIndices.slice(0, replacementDisplayLimit);
+  const replacementDisplayIndices = showAllRows
+    ? replacementFilteredIndices
+    : replacementFilteredIndices.slice(0, replacementDisplayLimit);
   const replacementHasMoreRows =
     replacementFilteredIndices.length > replacementDisplayLimit;
 
@@ -375,13 +383,30 @@ export function CompareResults({
                     </tr>
                   );
                 })}
-                {replacementHasMoreRows ? (
+                {replacementHasMoreRows && !showAllRows ? (
                   <tr>
                     <td
                       colSpan={replacementColumns.length + 1}
-                      style={{ textAlign: 'center', fontStyle: 'italic' }}
+                      style={{
+                        textAlign: 'center',
+                        fontStyle: 'italic',
+                        cursor: 'pointer',
+                        color: '#2563eb',
+                        padding: '12px',
+                        userSelect: 'none'
+                      }}
+                      onClick={() => setShowAllRows(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setShowAllRows(true);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`残りの${replacementFilteredIndices.length - replacementDisplayIndices.length}行を表示`}
                     >
-                      ... 他 {replacementFilteredIndices.length - replacementDisplayIndices.length} 行
+                      ... 他 {replacementFilteredIndices.length - replacementDisplayLimit} 行をクリックして表示
                     </td>
                   </tr>
                 ) : null}

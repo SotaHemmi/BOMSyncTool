@@ -172,7 +172,7 @@ function DropzonePreview({ dataset, adapter }: DropzonePreviewProps) {
             data-preview-table={dataset}
           >
             {hasData && parseResult ? (
-              <PreviewTable parseResult={parseResult} maxRows={6} />
+              <PreviewTable parseResult={parseResult} maxRows={15} />
             ) : null}
           </div>
         </div>

@@ -444,7 +444,7 @@ export function DatasetCard({
                   <div className="preview-with-settings">
                     <div className="drop-preview-table">
                       <div className="preview-table-wrapper">
-                        <PreviewTable parseResult={parseResult} maxRows={6} />
+                        <PreviewTable parseResult={parseResult} maxRows={15} />
                       </div>
                     </div>
                     <aside className="column-settings-panel" data-column-settings={dataset}>

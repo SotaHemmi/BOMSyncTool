@@ -8,51 +8,12 @@ import { logger } from '../utils/logger';
 import type { DatasetKey } from '../types';
 import { open } from '@tauri-apps/plugin-dialog';
 import { parseBomFile } from '../services';
-import { compareBoms, updateAndAppendBoms } from '../services';
 import {
   datasetState,
-  setDataset,
-  setCurrentDiffs,
-  setMergedBom,
-  areBothDatasetsLoaded,
-  currentDiffs,
-  mergedBom
+  setDataset
 } from '../state/app-state';
 import { updateAllDatasetCards } from './dataset-view';
-import { renderDiffTable, updateResultsSummary } from './diff-view';
-import { openEditModal } from './edit-modal';
-import { populateColumnSettings } from './column-editor';
-import { openDictionaryModal } from './dictionary-modal';
-import { exportToCSV, exportToECO, exportToCCF, exportToMSF, type ExportSource } from '../core/export-handler';
-import { saveProject } from '../core/project-manager';
 import { setProcessing, logActivity } from '../utils';
-
-type NormalizedStatus = 'added' | 'removed' | 'modified' | 'unchanged' | 'other';
-
-const STATUS_NORMALIZE_MAP: Record<string, NormalizedStatus> = {
-  added: 'added',
-  '追加': 'added',
-  removed: 'removed',
-  '削除': 'removed',
-  delete: 'removed',
-  deleted: 'removed',
-  modified: 'modified',
-  modify: 'modified',
-  change: 'modified',
-  changed: 'modified',
-  diff: 'modified',
-  '変更': 'modified',
-  unchanged: 'unchanged',
-  same: 'unchanged',
-  identical: 'unchanged',
-  '同一': 'unchanged'
-};
-
-function normalizeStatus(status: string | undefined | null): NormalizedStatus {
-  if (!status) return 'other';
-  const key = status.toLowerCase();
-  return STATUS_NORMALIZE_MAP[key] ?? 'other';
-}
 
 /**
  * ファイル選択ダイアログを開く
@@ -86,7 +47,6 @@ export async function loadBomFile(dataset: DatasetKey, filePath: string): Promis
     const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || 'unknown';
 
     setDataset(dataset, parseResult, fileName, filePath);
-    populateColumnSettings(dataset);
     updateAllDatasetCards();
     updateActionAvailability();
 
@@ -99,87 +59,6 @@ export async function loadBomFile(dataset: DatasetKey, filePath: string): Promis
   }
 }
 
-/**
- * BOM比較を実行
- */
-export async function runComparison(): Promise<void> {
-  if (!areBothDatasetsLoaded()) {
-    alert('BOM A と BOM B の両方を読み込んでください。');
-    return;
-  }
-
-  const parseA = datasetState.a.parseResult!;
-  const parseB = datasetState.b.parseResult!;
-
-  try {
-    setProcessing(true, '比較中...');
-
-    const diffs = await compareBoms(parseA, parseB);
-    setCurrentDiffs(diffs);
-
-    let added = 0;
-    let removed = 0;
-    let modified = 0;
-
-    diffs.forEach(diff => {
-      switch (normalizeStatus(diff.status)) {
-        case 'added':
-          added += 1;
-          break;
-        case 'removed':
-          removed += 1;
-          break;
-        case 'modified':
-          modified += 1;
-          break;
-        default:
-          break;
-      }
-    });
-
-    const total = added + removed + modified;
-
-    updateResultsSummary(`差分: ${total}件（追加 ${added}、削除 ${removed}、変更 ${modified}）`);
-    renderDiffTable(diffs);
-
-    logActivity(`比較完了: 差分 ${total}件`);
-  } catch (error) {
-    logger.error('Comparison failed', error);
-    alert(`比較に失敗しました: ${error}`);
-  } finally {
-    setProcessing(false);
-  }
-}
-
-/**
- * BOM置き換えを実行
- */
-export async function runReplace(): Promise<void> {
-  if (!areBothDatasetsLoaded()) {
-    alert('BOM A と BOM B の両方を読み込んでください。');
-    return;
-  }
-
-  const parseA = datasetState.a.parseResult!;
-  const parseB = datasetState.b.parseResult!;
-
-  try {
-    setProcessing(true, '置き換え中...');
-
-    const merged = await updateAndAppendBoms(parseA, parseB);
-    setMergedBom(merged);
-
-    updateResultsSummary(`置き換え完了: ${merged.rows.length}行`);
-
-    logActivity(`置き換え完了: ${merged.rows.length}行`);
-    alert(`置き換えが完了しました。\n結果: ${merged.rows.length}行`);
-  } catch (error) {
-    logger.error('Replace failed', error);
-    alert(`置き換えに失敗しました: ${error}`);
-  } finally {
-    setProcessing(false);
-  }
-}
 
 /**
  * ボタンの有効/無効を更新
@@ -203,69 +82,3 @@ export function updateActionAvailability(): void {
   }
 }
 
-/**
- * エクスポートボタンのイベントを登録
- */
-export function registerExportButtons(): void {
-  const resolveExportSource = (): ExportSource => {
-    if (mergedBom) {
-      return 'replacement';
-    }
-    if (currentDiffs && currentDiffs.length > 0) {
-      return 'comparison';
-    }
-    if (datasetState.b.parseResult) {
-      return 'bom_b';
-    }
-    if (datasetState.a.parseResult) {
-      return 'bom_a';
-    }
-    return 'comparison';
-  };
-
-  const handlers: Array<[string, () => Promise<void> | void]> = [
-    ['export-csv', () => exportToCSV(resolveExportSource())],
-    ['export-csv-main', () => exportToCSV(resolveExportSource())],
-    ['export-eco', () => exportToECO(resolveExportSource())],
-    ['export-eco-main', () => exportToECO(resolveExportSource())],
-    ['export-ccf', () => exportToCCF(resolveExportSource())],
-    ['export-ccf-main', () => exportToCCF(resolveExportSource())],
-    ['export-msf', () => exportToMSF(resolveExportSource())],
-    ['export-msf-main', () => exportToMSF(resolveExportSource())]
-  ];
-
-  handlers.forEach(([id, handler]) => {
-    const button = document.getElementById(id);
-    button?.addEventListener('click', () => {
-      void handler();
-    });
-  });
-}
-
-/**
- * 全イベントリスナーを登録
- */
-export function registerAllEventHandlers(): void {
-  // ファイル選択ボタン
-  document.getElementById('select-bom-a')?.addEventListener('click', () => openFileDialog('a'));
-  document.getElementById('select-bom-b')?.addEventListener('click', () => openFileDialog('b'));
-
-  // 比較・置き換えボタン
-  document.getElementById('run-compare')?.addEventListener('click', () => runComparison());
-  document.getElementById('run-replace')?.addEventListener('click', () => runReplace());
-
-  // 編集ボタン
-  document.getElementById('edit-bom-a')?.addEventListener('click', () => openEditModal('a'));
-  document.getElementById('edit-bom-b')?.addEventListener('click', () => openEditModal('b'));
-
-  // 辞書管理ボタン
-  document.getElementById('open-dictionary')?.addEventListener('click', () => openDictionaryModal());
-
-  // エクスポートボタン
-  registerExportButtons();
-
-  // プロジェクト保存ボタン
-  document.getElementById('manual-session-save-inline')?.addEventListener('click', () => saveProject());
-
-  logger.log('All event handlers registered');
-}

@@ -603,7 +603,7 @@ body {
 .preview-with-settings {
   display: flex;
   gap: 12px;
-  align-items: flex-start;
+  align-items: stretch;
   flex-wrap: wrap;
 }
 
@@ -611,6 +611,10 @@ body {
   flex: 1 1 300px;
   min-width: 0;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+  max-height: 400px;
 }
 
 /* Column Settings Panel */
@@ -621,6 +625,11 @@ body {
   background: #f8f9fa;
   border-radius: 6px;
   border: 1px solid var(--color-border-light);
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 @media (min-width: 1000px) {
@@ -668,10 +677,11 @@ body {
 }
 
 .column-default-preprocess {
-  margin-top: 8px;
-  font-size: 12px;
+  margin-top: auto;
   padding: 6px 12px;
+  font-size: 12px;
   width: 100%;
+  flex-shrink: 0;
 }
 
 .cell-with-error {
@@ -1038,7 +1048,7 @@ body {
 }
 
 .preview-table-wrapper {
-  max-height: 260px;
+  flex: 1;
   overflow: auto;
   border: 1px solid #dbe3f0;
   border-radius: 12px;

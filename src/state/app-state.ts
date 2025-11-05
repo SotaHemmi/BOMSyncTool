@@ -7,9 +7,7 @@
 import type {
   DatasetKey,
   DatasetState,
-  DiffRow,
   ParseResult,
-  EditModalState,
   DictionaryTab,
   RegistrationEntry,
   ExceptionEntry
@@ -40,21 +38,6 @@ export const datasetState: Record<DatasetKey, DatasetState> = {
 };
 
 /**
- * 差分比較結果
- */
-export let currentDiffs: DiffRow[] = [];
-
-/**
- * マージされたBOMデータ（A+B）
- */
-export let mergedBom: ParseResult | null = null;
-
-/**
- * 編集モーダルの状態
- */
-export let editModalState: EditModalState | null = null;
-
-/**
  * 辞書管理状態（IPC登録名 / 例外マスタ）
  */
 export const dictionaryState: {
@@ -81,27 +64,6 @@ export const nativeDropState: {
 // ============================================================================
 // 状態更新関数
 // ============================================================================
-
-/**
- * 差分比較結果を設定
- */
-export function setCurrentDiffs(diffs: DiffRow[]): void {
-  currentDiffs = diffs;
-}
-
-/**
- * マージBOMを設定
- */
-export function setMergedBom(bom: ParseResult | null): void {
-  mergedBom = bom;
-}
-
-/**
- * 編集モーダル状態を設定
- */
-export function setEditModalState(state: EditModalState | null): void {
-  editModalState = state;
-}
 
 /**
  * データセットをクリア
@@ -151,9 +113,6 @@ export function isAnyDatasetLoaded(): boolean {
 export function resetAllState(): void {
   clearDataset('a');
   clearDataset('b');
-  currentDiffs = [];
-  mergedBom = null;
-  editModalState = null;
   dictionaryState.registrations = [];
   dictionaryState.exceptions = [];
 }

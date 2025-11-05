@@ -18,7 +18,6 @@ import {
   formatDateLabel
 } from '../utils';
 import { updateActionAvailability } from './event-handlers';
-import { populateColumnSettings } from './column-editor';
 import { createDatasetPreviewTable, syncPreviewEmptyState } from './dataset-view';
 
 // ネイティブドロップ状態
@@ -186,7 +185,6 @@ async function loadBomFile(dataset: DatasetKey, path: string, fileName: string) 
     });
 
     setDataset(dataset, parseResult, fileName, path);
-    populateColumnSettings(dataset);
 
     logger.log('[loadBomFile] datasetState updated:', {
       dataset,
