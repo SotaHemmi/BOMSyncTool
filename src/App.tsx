@@ -35,9 +35,9 @@ import {
   exportToMSF,
   type ExportSource
 } from './core/export-handler';
+import { cloneRows } from './utils/data-utils';
+import { GearIcon } from './components/icons';
 import './styles.css';
-
-const cloneRows = (rows: string[][]): string[][] => rows.map(row => [...row]);
 
 const toPreprocessOptions = (options: EditPreprocessOptions): PreprocessOptions => ({
   expandRef: options.expandReference,
@@ -170,15 +170,21 @@ function App() {
     })();
   }, [dictionary, projects.saveProject, syncDatasetsFromState]);
 
+  const syncDatasetsFromStateRef = useRef(syncDatasetsFromState);
+
+  useEffect(() => {
+    syncDatasetsFromStateRef.current = syncDatasetsFromState;
+  }, [syncDatasetsFromState]);
+
   useEffect(() => {
     const handleDataLoaded = () => {
-      syncDatasetsFromState();
+      syncDatasetsFromStateRef.current();
     };
     window.addEventListener('bomsync:dataLoaded', handleDataLoaded);
     return () => {
       window.removeEventListener('bomsync:dataLoaded', handleDataLoaded);
     };
-  }, [syncDatasetsFromState]);
+  }, []); // 空の依存配列
 
   useEffect(() => {
     if (!activeProject) {
@@ -668,7 +674,7 @@ function App() {
       a: buildDataset('a', bomA.parseResult, bomA.fileName, bomA.lastUpdated ?? null, bomA.columnRoles),
       b: buildDataset('b', bomB.parseResult, bomB.fileName, bomB.lastUpdated ?? null, bomB.columnRoles)
     };
-  }, [bomA, bomB, editHeaderRoles, editRows]);
+  }, [bomA.parseResult, bomA.fileName, bomA.lastUpdated, bomA.columnRoles, bomB.parseResult, bomB.fileName, bomB.lastUpdated, bomB.columnRoles, editHeaderRoles, editRows]);
 
   const datasetAdapterA = useMemo(() => ({
     dataset: 'a' as DatasetKey,
@@ -695,7 +701,14 @@ function App() {
       alert(`BOM A: ${message}`);
     }
   }), [
-    bomA,
+    bomA.parseResult,
+    bomA.fileName,
+    bomA.lastUpdated,
+    bomA.columnRoles,
+    bomA.errors,
+    bomA.loadFile,
+    bomA.setColumnRoleById,
+    bomA.applyPreprocess,
     handleApplyDefaultPreprocess,
     handleLoadFile,
     handleOpenEdit,
@@ -729,7 +742,14 @@ function App() {
       alert(`BOM B: ${message}`);
     }
   }), [
-    bomB,
+    bomB.parseResult,
+    bomB.fileName,
+    bomB.lastUpdated,
+    bomB.columnRoles,
+    bomB.errors,
+    bomB.loadFile,
+    bomB.setColumnRoleById,
+    bomB.applyPreprocess,
     handleApplyDefaultPreprocess,
     handleLoadFile,
     handleOpenEdit,
@@ -790,9 +810,7 @@ function App() {
             data-tooltip="アプリ全体の設定や辞書を管理します"
             onClick={() => setSettingsModalOpen(true)}
           >
-            <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-              <path d="M12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2Zm8.94 2.2-1.16-.2a7.14 7.14 0 0 0-.54-1.32l.7-.94a.76.76 0 0 0-.05-.97l-1.38-1.38a.75.75 0 0 0-.97-.06l-.94.7a7.14 7.14 0 0 0-1.32-.54l-.2-1.16A.76.76 0 0 0 14.08 5h-1.95a.76.76 0 0 0-.74.63l-.2 1.16a7.14 7.14 0 0 0-1.32.54l-.94-.7a.75.75 0 0 0-.97.05L6.58 8.06a.75.75 0 0 0-.05.97l.7.94a7.14 7.14 0 0 0-.54 1.32l-1.16.2A.76.76 0 0 0 5 11.92v1.95c0 .37.27.69.63.74l1.16.2c.12.45.3.89.54 1.32l-.7.94a.76.76 0 0 0 .05.97l1.38 1.38c.25.25.64.29.97.06l.94-.7c.43.24.87.42 1.32.54l.2 1.16c.05.36.37.63.74.63h1.95c.37 0 .69-.27.74-.63l.2-1.16c.45-.12.89-.3 1.32-.54l.94.7c.33.23.72.19.97-.06l1.38-1.38a.75.75 0 0 0 .06-.97l-.7-.94c.24-.43.42-.87.54-1.32l1.16-.2c.36-.05.63-.37.63-.74v-1.95a.76.76 0 0 0-.63-.74Z" />
-            </svg>
+            <GearIcon />
           </button>
         </div>
       </header>

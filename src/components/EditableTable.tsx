@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import type { FocusEvent } from 'react';
 import type { ColumnMeta, ParseError } from '../types';
 
@@ -22,7 +22,7 @@ export interface EditableTableProps {
   onReorderColumns?: (fromIndex: number, toIndex: number) => void;
 }
 
-const DEFAULT_MAX_ROWS = 200;
+const DEFAULT_MAX_ROWS = 500;
 const severityPriority: Record<ErrorSeverity, number> = {
   error: 3,
   warning: 2,
@@ -74,7 +74,7 @@ function aggregateErrors(errors: ParseError[] | null | undefined): Map<string, A
   return map;
 }
 
-export function EditableTable({
+function EditableTable({
   columns,
   rows,
   structuredErrors,
@@ -202,3 +202,5 @@ export function EditableTable({
     </div>
   );
 }
+
+export default React.memo(EditableTable);

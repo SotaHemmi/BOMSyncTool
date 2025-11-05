@@ -287,7 +287,7 @@ body {
   border: 1px solid var(--color-border-default);
   border-radius: 50%;
   background: var(--color-bg-primary);
-  color: #0b1626;
+  color: #5f6368;
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -304,6 +304,11 @@ body {
   width: 20px;
   height: 20px;
   fill: currentColor;
+}
+
+.icon-button .icon-button-close-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .info-button {
@@ -792,11 +797,13 @@ body {
   border: none;
   background: transparent;
   color: inherit;
-  font-size: 16px;
   line-height: 1;
   cursor: pointer;
   padding: 0 2px;
   opacity: 0.7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .session-tab-favorite {
@@ -828,6 +835,13 @@ body {
 
 .session-tab-close:hover {
   opacity: 1;
+}
+
+.session-tab-close-icon {
+  width: 24px;
+  height: 24px;
+  display: block;
+  pointer-events: none;
 }
 
 .session-tab-empty {
@@ -2539,13 +2553,13 @@ body {
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  font-size: 16px;
   line-height: 1;
   color: #5f6368;
-  opacity: 0.75;
-  transition: all 0.12s ease;
+  opacity: 0.72;
+  transition: color 0.12s ease, background-color 0.12s ease, opacity 0.12s ease;
   position: relative;
   z-index: 2;
+  padding: 0;
 }
 
 .header-tab:hover .header-tab-close {
@@ -2579,11 +2593,19 @@ body {
 
 .header-tab-close:hover {
   background: rgba(95, 99, 104, 0.15);
-  color: #202124;
+  color: #1f2933;
+  opacity: 1;
 }
 
 .header-tab.is-active .header-tab-close:hover {
   background: rgba(95, 99, 104, 0.1);
+}
+
+.header-tab-close-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+  pointer-events: none;
 }
 
 .tab-bar-new-tab {

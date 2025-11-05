@@ -8,10 +8,7 @@ import { datasetState, editModalState, setEditModalState } from '../state/app-st
 import { openEditModalForDataset, renderEditTable as renderEditTableInternal } from './column-editor';
 import { updateDropzone as refreshDropzonePreview, updatePreviewCard, syncPreviewEmptyState } from './dataset-view';
 import { autoSaveActiveProject } from '../core/project-manager';
-
-function cloneRows(rows: string[][]): string[][] {
-  return rows.map(row => [...row]);
-}
+import { cloneRows } from '../utils/data-utils';
 
 export function openEditModal(dataset: DatasetKey): void {
   openEditModalForDataset(dataset);

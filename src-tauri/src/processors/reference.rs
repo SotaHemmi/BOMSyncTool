@@ -61,11 +61,10 @@ pub fn split_reference_rows(parse: &ParseResult) -> Result<ParseResult, AppError
 
     for (idx, row) in parse.rows.iter().enumerate() {
         let ref_value = parse.get_ref(idx);
-        let references: Vec<String> = ref_value
+        let references: Vec<&str> = ref_value
             .split(',')
             .map(|part| part.trim())
             .filter(|part| !part.is_empty())
-            .map(|part| part.to_string())
             .collect();
 
         if references.len() <= 1 {
@@ -79,7 +78,7 @@ pub fn split_reference_rows(parse: &ParseResult) -> Result<ParseResult, AppError
             let ref_indices = parse.get_column_indices("ref");
             for &col_idx in &ref_indices {
                 if col_idx < new_row.len() {
-                    new_row[col_idx] = reference.clone();
+                    new_row[col_idx] = reference.to_string();
                 }
             }
             result_rows.push(new_row);

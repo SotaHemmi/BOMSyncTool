@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ProjectRecord } from '../types';
+import { CloseIcon } from './icons';
 
 interface ProjectTabsProps {
   projects: ProjectRecord[];
@@ -270,7 +271,7 @@ export function ProjectTabs({
                     onTabClose(project.id);
                   }}
                 >
-                  ×
+                  <CloseIcon className="header-tab-close-icon" />
                 </button>
               </div>
               </Tabs.Trigger>

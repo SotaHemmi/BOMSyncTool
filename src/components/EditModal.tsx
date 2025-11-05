@@ -8,7 +8,8 @@ import type {
   ParseError
 } from '../types';
 import { datasetLabel, formatDateLabel } from '../utils';
-import { EditableTable } from './EditableTable';
+import EditableTable from './EditableTable';
+import { CloseIcon } from './icons';
 
 export interface EditModalDataset {
   dataset: DatasetKey;
@@ -537,7 +538,7 @@ export function EditModal({
                   aria-label="閉じる"
                   onClick={onClose}
                 >
-                  <span>&times;</span>
+                  <CloseIcon className="icon-button-close-icon" />
                 </button>
               </Dialog.Close>
             </header>

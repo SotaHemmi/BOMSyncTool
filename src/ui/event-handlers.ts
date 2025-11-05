@@ -4,6 +4,7 @@
  * UI要素のイベントリスナーを登録・管理
  */
 
+import { logger } from '../utils/logger';
 import type { DatasetKey } from '../types';
 import { open } from '@tauri-apps/plugin-dialog';
 import { parseBomFile } from '../services';
@@ -91,7 +92,7 @@ export async function loadBomFile(dataset: DatasetKey, filePath: string): Promis
 
     logActivity(`${dataset.toUpperCase()}: ${fileName} を読み込みました (${parseResult.rows.length}行)`);
   } catch (error) {
-    console.error('Failed to load BOM file', error);
+    logger.error('Failed to load BOM file', error);
     alert(`ファイルの読み込みに失敗しました: ${error}`);
   } finally {
     setProcessing(false);
@@ -143,7 +144,7 @@ export async function runComparison(): Promise<void> {
 
     logActivity(`比較完了: 差分 ${total}件`);
   } catch (error) {
-    console.error('Comparison failed', error);
+    logger.error('Comparison failed', error);
     alert(`比較に失敗しました: ${error}`);
   } finally {
     setProcessing(false);
@@ -173,7 +174,7 @@ export async function runReplace(): Promise<void> {
     logActivity(`置き換え完了: ${merged.rows.length}行`);
     alert(`置き換えが完了しました。\n結果: ${merged.rows.length}行`);
   } catch (error) {
-    console.error('Replace failed', error);
+    logger.error('Replace failed', error);
     alert(`置き換えに失敗しました: ${error}`);
   } finally {
     setProcessing(false);
@@ -266,5 +267,5 @@ export function registerAllEventHandlers(): void {
   // プロジェクト保存ボタン
   document.getElementById('manual-session-save-inline')?.addEventListener('click', () => saveProject());
 
-  console.log('All event handlers registered');
+  logger.log('All event handlers registered');
 }

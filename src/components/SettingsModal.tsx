@@ -4,6 +4,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import type { ProjectSettings } from '../types';
 import type { ThemeColors } from '../utils/storage';
 import { DictionaryTab, type DictionaryTabProps } from './DictionaryTab';
+import { CloseIcon } from './icons';
 
 export type SettingsTabKey = 'projects' | 'theme' | 'dictionary';
 
@@ -137,7 +138,7 @@ export function SettingsModal({
                   aria-label="閉じる"
                   onClick={onCancel}
                 >
-                  <span>&times;</span>
+                  <CloseIcon className="icon-button-close-icon" />
                 </button>
               </Dialog.Close>
             </header>

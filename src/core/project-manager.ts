@@ -4,6 +4,7 @@
  * プロジェクトの保存・読み込み・管理機能（BomRow不使用）
  */
 
+import { logger } from '../utils/logger';
 import type { ProjectRecord, ProjectPayload, ColumnRole, ProjectSettings } from '../types';
 import { datasetState, resetAllState } from '../state/app-state';
 import {
@@ -57,6 +58,30 @@ const PROJECT_FOCUS_EVENT_KEY = 'project_focus_request';
 
 let currentWindowLabel: string | null = null;
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function createCloseIcon(className: string): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  if (className) {
+    svg.classList.add(className);
+  }
+
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', 'M19 5 5 19M5 5l14 14');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', 'currentColor');
+  path.setAttribute('stroke-width', '2.2');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+
+  svg.appendChild(path);
+  return svg;
+}
+
 /**
  * ウィンドウラベルを遅延取得する
  * Tauriランタイムが初期化されるまで待つ
@@ -71,7 +96,7 @@ function getCurrentWindowLabel(): string {
     currentWindowLabel = win.label;
     return currentWindowLabel;
   } catch (error) {
-    console.warn('ウィンドウラベルの取得に失敗しました:', error);
+    logger.warn('ウィンドウラベルの取得に失敗しました:', error);
     currentWindowLabel = 'main';
     return currentWindowLabel;
   }
@@ -88,7 +113,7 @@ function readProjectWindowMap(): ProjectWindowMap {
     const parsed = JSON.parse(stored) as ProjectWindowMap;
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch (error) {
-    console.warn('プロジェクトウィンドウマップの解析に失敗しました:', error);
+    logger.warn('プロジェクトウィンドウマップの解析に失敗しました:', error);
     return {};
   }
 }
@@ -149,7 +174,7 @@ async function focusWindowByLabel(label: string): Promise<boolean> {
     await target.setFocus();
     return true;
   } catch (error) {
-    console.warn('ウィンドウのフォーカスに失敗しました:', error);
+    logger.warn('ウィンドウのフォーカスに失敗しました:', error);
     return false;
   }
 }
@@ -626,7 +651,7 @@ function createHeaderTabElement(project: ProjectRecord, favoriteProjects: Set<st
   closeButton.className = 'header-tab-close';
   closeButton.type = 'button';
   closeButton.setAttribute('aria-label', 'タブを閉じる');
-  closeButton.textContent = '×';
+  closeButton.appendChild(createCloseIcon('header-tab-close-icon'));
   closeButton.addEventListener('click', (event: MouseEvent) => {
     event.stopPropagation();
     closeTab(project.id);
@@ -644,7 +669,7 @@ function createHeaderTabElement(project: ProjectRecord, favoriteProjects: Set<st
         const projectData = JSON.stringify(project);
         event.dataTransfer.setData('application/json', projectData);
       } catch (error) {
-        console.error('Failed to serialize project data for drag:', error);
+        logger.error('Failed to serialize project data for drag:', error);
       }
 
       // カスタムドラッグプレビュー: 角丸四角＋タブ名
@@ -826,7 +851,7 @@ export function createProjectTabElement(project: ProjectRecord, favoriteProjects
         const projectData = JSON.stringify(project);
         event.dataTransfer.setData('application/json', projectData);
       } catch (error) {
-        console.error('Failed to serialize project data for drag:', error);
+        logger.error('Failed to serialize project data for drag:', error);
       }
 
       tab.classList.add('dragging');
@@ -879,7 +904,7 @@ export function createProjectTabElement(project: ProjectRecord, favoriteProjects
   close.className = 'session-tab-close';
   close.type = 'button';
   close.setAttribute('aria-label', 'タブを削除');
-  close.textContent = '×';
+  close.appendChild(createCloseIcon('session-tab-close-icon'));
   close.title = '削除';
   close.addEventListener('click', event => {
     event.stopPropagation();
@@ -1285,7 +1310,7 @@ async function openProjectInNewWindow(
     }
     logActivity('プロジェクトを新しいウィンドウで開きました。');
   } catch (error) {
-    console.error('Failed to open project in new window:', error);
+    logger.error('Failed to open project in new window:', error);
     alert(`ウィンドウを開けませんでした: ${error}`);
   }
 }
@@ -1510,7 +1535,7 @@ function registerTabDragAndDrop(): void {
         // 別ウィンドウからのタブ → このウィンドウに統合
         mergeProjectFromDataTransfer(projectDataJson);
       } else {
-        console.error('Cannot merge project: no project data in DataTransfer');
+        logger.error('Cannot merge project: no project data in DataTransfer');
       }
     }
   });
@@ -1553,7 +1578,7 @@ function mergeProjectFromDataTransfer(projectDataJson: string): void {
 
     logActivity(`プロジェクト「${projectRecord.name ?? '未命名タブ'}」を統合しました。`);
   } catch (error) {
-    console.error('Failed to merge project from DataTransfer:', error);
+    logger.error('Failed to merge project from DataTransfer:', error);
     alert(`プロジェクトの統合に失敗しました: ${error}`);
   }
 }
@@ -1583,7 +1608,7 @@ export function registerProjectMergeListener(): void {
           logActivity(`プロジェクトが他のウィンドウに移動しました。`);
         }
       } catch (error) {
-        console.error('Failed to process project merge event:', error);
+        logger.error('Failed to process project merge event:', error);
       }
     } else if (event.key === PROJECT_FOCUS_EVENT_KEY && event.newValue) {
       try {
@@ -1602,7 +1627,7 @@ export function registerProjectMergeListener(): void {
           }
         }
       } catch (error) {
-        console.error('Failed to process project focus event:', error);
+        logger.error('Failed to process project focus event:', error);
       }
     }
   });

@@ -4,6 +4,7 @@
  * ファイルのドラッグ&ドロップ機能
  */
 
+import { logger } from '../utils/logger';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { DatasetKey } from '../types';
 import { datasetState, setDataset } from '../state/app-state';
@@ -32,10 +33,10 @@ const nativeDropState: {
 
 
 function updateDropzone(dataset: DatasetKey) {
-  console.log('[updateDropzone] Called for dataset:', dataset);
+  logger.log('[updateDropzone] Called for dataset:', dataset);
   const state = datasetState[dataset];
   const result = state.parseResult;
-  console.log('[updateDropzone] Has result:', Boolean(result));
+  logger.log('[updateDropzone] Has result:', Boolean(result));
 
   const dropzone = document.querySelector<HTMLElement>(
     `.dropzone[data-target="${dataset}"]`
@@ -59,7 +60,7 @@ function updateDropzone(dataset: DatasetKey) {
   );
 
   if (!dropzone) {
-    console.warn('[updateDropzone] Dropzone element not found for dataset:', dataset);
+    logger.warn('[updateDropzone] Dropzone element not found for dataset:', dataset);
     return;
   }
 
@@ -174,11 +175,11 @@ function onDropzoneFileSelected(dataset: DatasetKey, path: string, fileName: str
 
 async function loadBomFile(dataset: DatasetKey, path: string, fileName: string) {
   try {
-    console.log('[loadBomFile] Starting load:', { dataset, path, fileName });
+    logger.log('[loadBomFile] Starting load:', { dataset, path, fileName });
     setProcessing(true, `${datasetLabel(dataset)} を読み込み中...`);
     const parseResult = await parseBomFile(path);
     const rowCount = parseResult.rows?.length ?? 0;
-    console.log('[loadBomFile] Parse result received:', {
+    logger.log('[loadBomFile] Parse result received:', {
       dataset,
       rowCount,
       errors: parseResult.errors.length
@@ -187,19 +188,19 @@ async function loadBomFile(dataset: DatasetKey, path: string, fileName: string) 
     setDataset(dataset, parseResult, fileName, path);
     populateColumnSettings(dataset);
 
-    console.log('[loadBomFile] datasetState updated:', {
+    logger.log('[loadBomFile] datasetState updated:', {
       dataset,
       hasParseResult: Boolean(datasetState[dataset].parseResult)
     });
 
-    console.log('[loadBomFile] Calling updateDropzone...');
+    logger.log('[loadBomFile] Calling updateDropzone...');
     updateDropzone(dataset);
-    console.log('[loadBomFile] updateDropzone completed');
+    logger.log('[loadBomFile] updateDropzone completed');
     logActivity(`${datasetLabel(dataset)}: ${fileName} を読み込みました (${rowCount}行)`);
 
     window.dispatchEvent(new CustomEvent('bomsync:dataLoaded', { detail: { dataset } }));
   } catch (error) {
-    console.error('[loadBomFile] Error:', error);
+    logger.error('[loadBomFile] Error:', error);
     alert(`${datasetLabel(dataset)} の読み込みに失敗しました:\n${error}`);
   } finally {
     setProcessing(false);
@@ -224,33 +225,33 @@ export function registerDropzoneEvents() {
     let dragCounter = 0;
 
     const handleDrop = (event: DragEvent) => {
-      console.log('[html-drop] ===== DROP EVENT FIRED =====');
+      logger.log('[html-drop] ===== DROP EVENT FIRED =====');
       event.preventDefault();
       event.stopPropagation();
       dragCounter = 0;
       setDragging(false);
-      console.log('[html-drop] Drop event received on dataset:', dataset);
-      console.log('[html-drop] event.dataTransfer?.files:', event.dataTransfer?.files);
-      console.log('[html-drop] Current nativeDropState:', JSON.stringify(nativeDropState));
+      logger.log('[html-drop] Drop event received on dataset:', dataset);
+      logger.log('[html-drop] event.dataTransfer?.files:', event.dataTransfer?.files);
+      logger.log('[html-drop] Current nativeDropState:', JSON.stringify(nativeDropState));
 
       const files = event.dataTransfer?.files;
       if (!files || files.length === 0) {
-        console.warn('[html-drop] Drop event contained no files');
+        logger.warn('[html-drop] Drop event contained no files');
         return;
       }
       const file = files[0] as File & { path?: string };
-      console.log('[html-drop] File object:', { name: file.name, size: file.size, type: file.type, path: file.path });
+      logger.log('[html-drop] File object:', { name: file.name, size: file.size, type: file.type, path: file.path });
 
       let dropPath: string | undefined = file.path ?? undefined;
-      console.log('[html-drop] file.path =', dropPath);
+      logger.log('[html-drop] file.path =', dropPath);
 
       if (!dropPath && nativeDropState.dataset === dataset && nativeDropState.paths.length > 0) {
         [dropPath] = nativeDropState.paths;
-        console.log('[html-drop] Using path from nativeDropState:', dropPath);
+        logger.log('[html-drop] Using path from nativeDropState:', dropPath);
       }
 
       if (!dropPath) {
-        console.error('[html-drop] File path is unavailable.');
+        logger.error('[html-drop] File path is unavailable.');
         alert('ファイルパスを取得できませんでした。選択ボタンから読み込んでください。');
         setTimeout(() => {
           nativeDropState.dataset = null;
@@ -259,10 +260,10 @@ export function registerDropzoneEvents() {
         return;
       }
       const displayName = file.name || dropPath.split(/[\\/]/).pop() || 'ドロップファイル';
-      console.log('[html-drop] Invoking loader with path:', dropPath);
+      logger.log('[html-drop] Invoking loader with path:', dropPath);
       onDropzoneFileSelected(dataset, dropPath, displayName);
       setTimeout(() => {
-        console.log('[html-drop] Clearing nativeDropState after successful load');
+        logger.log('[html-drop] Clearing nativeDropState after successful load');
         nativeDropState.dataset = null;
         nativeDropState.paths = [];
       }, 100);
@@ -273,7 +274,7 @@ export function registerDropzoneEvents() {
       element.addEventListener(
         'dragenter',
         event => {
-          console.log('[html-drag] dragenter event on dataset:', dataset);
+          logger.log('[html-drag] dragenter event on dataset:', dataset);
           event.preventDefault();
           dragCounter += 1;
           setDragging(true);
@@ -312,11 +313,11 @@ export function registerDropzoneEvents() {
 
 export function registerNativeDropBridge() {
   if (!(window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) {
-    console.info('[dropzone] Native drag/drop bridge unavailable (non-Tauri environment).');
+    logger.info('[dropzone] Native drag/drop bridge unavailable (non-Tauri environment).');
     return;
   }
 
-  console.log('[dropzone] Registering native drag/drop bridge...');
+  logger.log('[dropzone] Registering native drag/drop bridge...');
   const currentWindow = getCurrentWindow();
 
   currentWindow
@@ -325,11 +326,11 @@ export function registerNativeDropBridge() {
       const position = 'position' in event.payload ? event.payload.position : undefined;
       const paths = 'paths' in event.payload ? event.payload.paths : [];
 
-      console.debug('[native-drop] Event received:', { type: eventType, position, paths, currentState: nativeDropState });
+      logger.log('[native-drop] Event received:', { type: eventType, position, paths, currentState: nativeDropState });
 
       if (eventType === 'over') {
         const dataset = datasetFromPosition(position);
-        console.debug('[native-drop] Over detected over dataset:', dataset);
+        logger.log('[native-drop] Over detected over dataset:', dataset);
         if (dataset !== nativeDropState.dataset) {
           if (nativeDropState.dataset) {
             toggleDropzoneHover(nativeDropState.dataset, false);
@@ -340,14 +341,14 @@ export function registerNativeDropBridge() {
           toggleDropzoneHover(dataset, true);
         }
       } else if (eventType === 'drop') {
-        console.log('[native-drop] Drop event - saving paths:', paths);
+        logger.log('[native-drop] Drop event - saving paths:', paths);
         const dataset = datasetFromPosition(position);
-        console.log('[native-drop] Drop position dataset:', dataset);
+        logger.log('[native-drop] Drop position dataset:', dataset);
 
         if (dataset && paths && paths.length > 0) {
           const filePath = paths[0];
           const fileName = filePath.split(/[\\/]/).pop() || 'ドロップファイル';
-          console.log('[native-drop] Loading file via bridge:', { dataset, filePath, fileName });
+          logger.log('[native-drop] Loading file via bridge:', { dataset, filePath, fileName });
           toggleDropzoneHover(dataset, false);
           const customEvent = new CustomEvent('bomsync:nativeDrop', {
             cancelable: true,
@@ -366,13 +367,13 @@ export function registerNativeDropBridge() {
           } else if (nativeDropState.paths.length === 0) {
             nativeDropState.paths = paths ?? [];
           }
-          console.log('[native-drop] nativeDropState saved for HTML handler:', nativeDropState);
+          logger.log('[native-drop] nativeDropState saved for HTML handler:', nativeDropState);
           if (nativeDropState.dataset) {
             toggleDropzoneHover(nativeDropState.dataset, false);
           }
         }
       } else {
-        console.debug('[native-drop] Cancel/leave event');
+        logger.log('[native-drop] Cancel/leave event');
         if (nativeDropState.dataset) {
           toggleDropzoneHover(nativeDropState.dataset, false);
         }
@@ -381,8 +382,8 @@ export function registerNativeDropBridge() {
       }
     })
     .catch((error: unknown) => {
-      console.error('[dropzone] Failed to register native drag/drop bridge:', error);
+      logger.error('[dropzone] Failed to register native drag/drop bridge:', error);
     });
 
-  console.log('[dropzone] Native drag/drop bridge registered successfully');
+  logger.log('[dropzone] Native drag/drop bridge registered successfully');
 }

@@ -21,13 +21,10 @@ import {
   updatePreviewCard,
   syncPreviewEmptyState
 } from './dataset-view';
+import { cloneRows } from '../utils/data-utils';
 
 const MULTIPLE_SELECTION_VALUE = '__MULTIPLE__';
 const MAX_EDIT_ROWS = 200;
-
-function cloneRows(rows: string[][]): string[][] {
-  return rows.map(row => [...row]);
-}
 
 function isColumnRole(role: string): role is ColumnRole {
   return ['ref', 'part_no', 'manufacturer', 'ignore'].includes(role);

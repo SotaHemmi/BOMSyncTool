@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { ProjectRecord } from '../types';
+import { CloseIcon } from './icons';
 
 interface ProjectPanelProps {
   projects: ProjectRecord[];
@@ -127,7 +128,7 @@ export function ProjectPanel({
             handleDelete();
           }}
         >
-          ×
+          <CloseIcon className="session-tab-close-icon" />
         </button>
       </div>
     );

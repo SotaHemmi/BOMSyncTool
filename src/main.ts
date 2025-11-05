@@ -5,6 +5,7 @@
  */
 
 import './styles.css';
+import { logger } from './utils/logger';
 
 // UIモジュール
 import { initTooltipSystem } from './ui/tooltip';
@@ -51,7 +52,7 @@ import type { DatasetKey } from './types';
  * ファイル選択時のコールバック
  */
 function onFileSelected(dataset: DatasetKey, path: string, fileName: string) {
-  console.log('File selected:', dataset, path, fileName);
+  logger.log('File selected:', dataset, path, fileName);
   // dropzone.ts内のloadBomFileが呼ばれる
 }
 
@@ -119,7 +120,7 @@ function registerProjectLoadedListener() {
  * 初期化関数
  */
 function init() {
-  console.log('BOMSyncTool initializing...');
+  logger.log('BOMSyncTool initializing...');
 
   // システム初期化
   initTooltipSystem();
@@ -162,7 +163,7 @@ function init() {
     });
   }
 
-  console.log('BOMSyncTool ready.');
+  logger.log('BOMSyncTool ready.');
 }
 
 // アプリケーション起動
