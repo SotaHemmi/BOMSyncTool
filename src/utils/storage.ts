@@ -9,9 +9,9 @@ import type {
   ExceptionEntry,
   PreprocessBlock
 } from '../types';
+import { ProjectStorage } from '../core/storage';
 
 // Storage keys
-const PROJECT_STORAGE_KEY = 'bomsync_projects';
 const ACTIVE_PROJECT_KEY = 'bomsync_active_project';
 const FAVORITE_PROJECTS_KEY = 'bomsync_favorite_projects';
 export const FAVORITE_PROJECTS_ARCHIVE_KEY = 'bomsync_favorite_archive';
@@ -28,24 +28,12 @@ const THEME_DANGER_KEY = 'theme-danger';
  * プロジェクト関連
  */
 export function getStoredProjects(): ProjectRecord[] {
-  const stored = localStorage.getItem(PROJECT_STORAGE_KEY);
-  if (!stored) return [];
-  try {
-    return JSON.parse(stored) as ProjectRecord[];
-  } catch {
-    return [];
-  }
+  return ProjectStorage.getAll();
 }
 
 export function saveStoredProjects(projects: ProjectRecord[]): boolean {
-  try {
-    localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(projects));
-    return true;
-  } catch (error) {
-    console.error('Failed to persist projects to localStorage', error);
-    alert('プロジェクトの保存に失敗しました。不要なプロジェクトを削除して空き領域を確保してください。');
-    return false;
-  }
+  ProjectStorage.saveAll(projects);
+  return true;
 }
 
 export function loadActiveProjectId(): string | null {

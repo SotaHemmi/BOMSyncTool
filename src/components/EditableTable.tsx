@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import type { FocusEvent } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { FocusEvent, UIEvent } from 'react';
 import type { ColumnMeta, ParseError } from '../types';
 
 type ErrorSeverity = 'error' | 'warning' | 'info';
@@ -22,7 +22,11 @@ export interface EditableTableProps {
   onReorderColumns?: (fromIndex: number, toIndex: number) => void;
 }
 
-const DEFAULT_MAX_ROWS = 500;
+const ROW_HEIGHT_PX = 38;
+const DEFAULT_VIEWPORT_HEIGHT = 420;
+const VIRTUALIZATION_THRESHOLD = 200;
+const VIRTUALIZATION_OVERSCAN = 8;
+
 const severityPriority: Record<ErrorSeverity, number> = {
   error: 3,
   warning: 2,
@@ -79,15 +83,63 @@ function EditableTable({
   rows,
   structuredErrors,
   highlightedCell,
-  maxRows = DEFAULT_MAX_ROWS,
+  maxRows,
   onCellChange,
   onCellFocus,
   onAddRow,
   onDeleteRow
   // onReorderColumns - 将来実装予定
 }: EditableTableProps) {
-  const displayRows = useMemo(() => rows.slice(0, maxRows), [rows, maxRows]);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [containerHeight, setContainerHeight] = useState<number>(DEFAULT_VIEWPORT_HEIGHT);
+  const [scrollOffset, setScrollOffset] = useState<number>(0);
+
   const errorMap = useMemo(() => aggregateErrors(structuredErrors), [structuredErrors]);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (scrollContainerRef.current) {
+        setContainerHeight(scrollContainerRef.current.clientHeight);
+      }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (scrollContainerRef.current) {
+      setContainerHeight(scrollContainerRef.current.clientHeight);
+    }
+  }, [columns.length, rows.length]);
+
+  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    setScrollOffset(event.currentTarget.scrollTop);
+  }, []);
+
+  const effectiveMaxRows = typeof maxRows === 'number' ? maxRows : rows.length;
+  const totalRows = Math.min(rows.length, effectiveMaxRows);
+  const boundedRows = useMemo(() => rows.slice(0, totalRows), [rows, totalRows]);
+
+  const enableVirtualization = totalRows > VIRTUALIZATION_THRESHOLD;
+  const viewportRowCapacity = Math.max(1, Math.ceil(containerHeight / ROW_HEIGHT_PX));
+  const virtualStartIndex = enableVirtualization
+    ? Math.max(0, Math.floor(scrollOffset / ROW_HEIGHT_PX) - VIRTUALIZATION_OVERSCAN)
+    : 0;
+  const virtualEndIndex = enableVirtualization
+    ? Math.min(totalRows, virtualStartIndex + viewportRowCapacity + VIRTUALIZATION_OVERSCAN * 2)
+    : totalRows;
+
+  const visibleRows = useMemo(
+    () => boundedRows.slice(virtualStartIndex, virtualEndIndex),
+    [boundedRows, virtualEndIndex, virtualStartIndex]
+  );
+
+  const paddingTop = enableVirtualization ? virtualStartIndex * ROW_HEIGHT_PX : 0;
+  const paddingBottom = enableVirtualization
+    ? Math.max(0, totalRows * ROW_HEIGHT_PX - paddingTop - visibleRows.length * ROW_HEIGHT_PX)
+    : 0;
+  const columnSpan = columns.length + (onDeleteRow ? 1 : 0);
 
   const handleCellBlur = (rowIndex: number, columnIndex: number) => (event: FocusEvent<HTMLTableCellElement>) => {
     const nextValue = event.currentTarget.textContent ?? '';
@@ -128,18 +180,32 @@ function EditableTable({
         </div>
       )}
 
-      <table id="edit-table">
-        <thead id="edit-table-head">
-          <tr>
-            {onDeleteRow && <th style={{ width: '40px' }}>削除</th>}
-            {columns.map(column => (
-              <th key={column.id}>{column.name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody id="edit-table-body">
-          {displayRows.map((row, rowIndex) => (
-            <tr key={`edit-row-${rowIndex}`}>
+      <div
+        className="editable-table-scroll"
+        ref={scrollContainerRef}
+        onScroll={enableVirtualization ? handleScroll : undefined}
+        style={enableVirtualization ? { maxHeight: DEFAULT_VIEWPORT_HEIGHT, overflowY: 'auto' } : undefined}
+      >
+        <table id="edit-table">
+          <thead id="edit-table-head">
+            <tr>
+              {onDeleteRow && <th style={{ width: '40px' }}>削除</th>}
+              {columns.map(column => (
+                <th key={column.id}>{column.name}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody id="edit-table-body">
+          {enableVirtualization && paddingTop > 0 ? (
+            <tr className="virtual-spacer" style={{ height: paddingTop }}>
+              <td colSpan={columnSpan} />
+            </tr>
+          ) : null}
+
+          {(enableVirtualization ? visibleRows : boundedRows).map((row, index) => {
+            const rowIndex = enableVirtualization ? virtualStartIndex + index : index;
+            return (
+              <tr key={`edit-row-${rowIndex}`} style={enableVirtualization ? { height: ROW_HEIGHT_PX } : undefined}>
               {onDeleteRow && (
                 <td className="row-actions">
                   <button
@@ -189,16 +255,25 @@ function EditableTable({
                 );
               })}
             </tr>
-          ))}
-          {rows.length > maxRows ? (
+            );
+          })}
+
+          {enableVirtualization && paddingBottom > 0 ? (
+            <tr className="virtual-spacer" style={{ height: paddingBottom }}>
+              <td colSpan={columnSpan} />
+            </tr>
+          ) : null}
+
+          {rows.length > totalRows ? (
             <tr className="edit-table-notice-row">
-              <td colSpan={columns.length} className="edit-table-notice">
-                表示は先頭 {maxRows} 行までです。
+              <td colSpan={columnSpan} className="edit-table-notice">
+                表示は先頭 {totalRows} 行までです。
               </td>
             </tr>
           ) : null}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

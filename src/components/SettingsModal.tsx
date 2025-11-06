@@ -24,7 +24,6 @@ export interface SettingsModalProps {
   onOpenChange: (open: boolean) => void;
   onTabChange: (tab: SettingsTabKey) => void;
   projectSettings: ProjectSettings;
-  onMaxEditRowsChange?: (value: number) => void;
   onDefaultPreprocessChange: (option: keyof DefaultPreprocessOptions, value: boolean) => void;
   themeColors: ThemeColors;
   onThemeColorChange: (color: keyof ThemeColors, value: string) => void;
@@ -35,21 +34,12 @@ export interface SettingsModalProps {
   isSaving?: boolean;
 }
 
-function clampNumber(value: string, fallback: number, min: number, max: number): number {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return fallback;
-  }
-  return Math.min(Math.max(Math.round(numeric), min), max);
-}
-
 export function SettingsModal({
   open,
   activeTab,
   onOpenChange,
   onTabChange,
   projectSettings,
-  onMaxEditRowsChange,
   onDefaultPreprocessChange,
   themeColors,
   onThemeColorChange,
@@ -74,17 +64,6 @@ export function SettingsModal({
     }),
     [projectSettings.defaultPreprocess]
   );
-
-  const handleMaxEditRowsChange = (event: ChangeEvent<HTMLInputElement>) => {
-    if (!onMaxEditRowsChange) return;
-    const nextValue = clampNumber(
-      event.target.value,
-      projectSettings.maxEditRows ?? 200,
-      50,
-      1000
-    );
-    onMaxEditRowsChange(nextValue);
-  };
 
   const handleThemeChange =
     (color: keyof ThemeColors) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -147,24 +126,6 @@ export function SettingsModal({
               <Tabs.Content value="projects">
                 <div className="modal-body settings-body">
                   <section className="settings-panel" id="settings-panel-projects">
-                    <div className="settings-group">
-                      <h3>最大編集行数</h3>
-                      <p className="settings-description">
-                        編集モーダルで表示する最大行数を指定します（50〜1000行）
-                      </p>
-                      <input
-                        type="number"
-                        min={50}
-                        max={1000}
-                        step={10}
-                        value={projectSettings.maxEditRows ?? 200}
-                        onChange={handleMaxEditRowsChange}
-                        disabled={!onMaxEditRowsChange}
-                      />
-                    </div>
-                    <p className="settings-hint">
-                      手動保存はメイン画面の「タブを保存」ボタンから実行できます。
-                    </p>
                     <div className="settings-group">
                       <h3>デフォルト前処理</h3>
                       <p className="settings-description">

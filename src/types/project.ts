@@ -48,7 +48,6 @@ export interface ProjectRecord {
 export interface ProjectSettings {
   autoIntervalMinutes: number;
   autoMaxEntries: number;
-  maxEditRows?: number;
   defaultPreprocess?: {
     expandReference: boolean;
     splitReferenceRows: boolean;

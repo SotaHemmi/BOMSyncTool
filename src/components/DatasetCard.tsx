@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import type { ChangeEvent } from 'react';
 import type { ColumnMeta, ColumnRole, DatasetKey, ParseError, ParseResult } from '../types';
-import { datasetLabel, formatDateLabel } from '../utils';
-import { getColumnIndexById } from '../utils/bom';
+import { datasetLabel, formatDateLabel, buildColumnIndexMap } from '../utils';
+import { useColumnSamples } from '../hooks/useColumnSamples';
+import { deriveColumns } from '../core/bom-columns';
 
 export const MULTIPLE_COLUMN_TOKEN = '__MULTIPLE__';
 
@@ -47,27 +48,6 @@ function pickHigherSeverity(current: 'error' | 'warning' | 'info', next: 'error'
   return SEVERITY_PRIORITY[next] > SEVERITY_PRIORITY[current] ? next : current;
 }
 
-export function deriveColumns(parseResult: ParseResult): ColumnMeta[] {
-  if (parseResult.columns && parseResult.columns.length > 0) {
-    return parseResult.columns;
-  }
-
-  const headerCount = parseResult.headers?.length ?? parseResult.rows[0]?.length ?? 0;
-  const columnOrder = parseResult.column_order ?? [];
-
-  if (columnOrder.length === headerCount && headerCount > 0) {
-    return columnOrder.map((id, index) => ({
-      id,
-      name: parseResult.headers?.[index] ?? id
-    }));
-  }
-
-  return Array.from({ length: headerCount }, (_, index) => ({
-    id: columnOrder[index] ?? `col-${index}`,
-    name: parseResult.headers?.[index] ?? columnOrder[index] ?? `Column ${index + 1}`
-  }));
-}
-
 export function buildCellErrorMap(parseResult: ParseResult | null): Map<string, CellErrorInfo> {
   const map = new Map<string, CellErrorInfo>();
   if (!parseResult?.structured_errors?.length) {
@@ -99,17 +79,6 @@ export function buildCellErrorMap(parseResult: ParseResult | null): Map<string, 
         messages: [error.message]
       });
     }
-  });
-
-  return map;
-}
-
-function buildColumnIndexMap(columns: ColumnMeta[], parseResult: ParseResult): Map<string, number> {
-  const map = new Map<string, number>();
-
-  columns.forEach((column, index) => {
-    const resolvedIndex = getColumnIndexById(parseResult, column.id);
-    map.set(column.id, resolvedIndex >= 0 ? resolvedIndex : index);
   });
 
   return map;
@@ -240,7 +209,7 @@ interface DatasetCardProps {
   onExportMSF?: () => void;
 }
 
-export function DatasetCard({
+function DatasetCardComponent({
   dataset,
   parseResult,
   fileName,
@@ -263,31 +232,7 @@ export function DatasetCard({
   );
 
   // 各列のサンプルデータを生成（最初の3つの非空値）
-  const columnSamples = useMemo(() => {
-    if (!parseResult || !parseResult.rows.length) return new Map<string, string>();
-    const samples = new Map<string, string>();
-    const columnIndexMap = buildColumnIndexMap(columns, parseResult);
-
-    columns.forEach(column => {
-      const columnIndex = columnIndexMap.get(column.id) ?? -1;
-      if (columnIndex < 0) return;
-
-      const values: string[] = [];
-      for (const row of parseResult.rows) {
-        const value = row[columnIndex];
-        if (value && String(value).trim()) {
-          values.push(String(value).trim());
-          if (values.length >= 3) break;
-        }
-      }
-
-      if (values.length > 0) {
-        samples.set(column.id, values.join(', '));
-      }
-    });
-
-    return samples;
-  }, [columns, parseResult]);
+  const columnSamples = useColumnSamples(columns, parseResult);
 
   const previewMeta = useMemo(() => {
     if (!hasData || !parseResult) {
@@ -335,15 +280,18 @@ export function DatasetCard({
     }));
   }, [errors, parseResult]);
 
-  const handleRoleChange = (role: ColumnRole) => (event: ChangeEvent<HTMLSelectElement>) => {
-    if (!onColumnRoleChange) return;
-    const { value } = event.target;
-    if (value === MULTIPLE_COLUMN_TOKEN) {
-      return;
-    }
-    const nextValue = value || null;
-    onColumnRoleChange(role, nextValue);
-  };
+  const handleRoleChange = useCallback(
+    (role: ColumnRole) => (event: ChangeEvent<HTMLSelectElement>) => {
+      if (!onColumnRoleChange) return;
+      const { value } = event.target;
+      if (value === MULTIPLE_COLUMN_TOKEN) {
+        return;
+      }
+      const nextValue = value || null;
+      onColumnRoleChange(role, nextValue);
+    },
+    [onColumnRoleChange]
+  );
 
   return (
     <section className="preview-card" data-dataset={dataset}>
@@ -537,3 +485,5 @@ export function DatasetCard({
     </section>
   );
 }
+
+export const DatasetCard = memo(DatasetCardComponent);

@@ -87,7 +87,6 @@ export interface EditModalProps {
   onAddRow?: (dataset: DatasetKey) => void;
   onDeleteRow?: (dataset: DatasetKey, rowIndex: number) => void;
   onReorderColumns?: (dataset: DatasetKey, fromIndex: number, toIndex: number) => void;
-  maxEditRows?: number;
 }
 
 export function EditModal({
@@ -115,8 +114,7 @@ export function EditModal({
   applying = false,
   onAddRow,
   onDeleteRow,
-  onReorderColumns,
-  maxEditRows = 200
+  onReorderColumns
 }: EditModalProps) {
   const [localFindReplace, setLocalFindReplace] = useState<Record<DatasetKey, FindReplaceState>>(() => ({
     a: { find: '', replace: '' },
@@ -334,7 +332,6 @@ export function EditModal({
                 rows={data.rows}
                 structuredErrors={data.structuredErrors}
                 highlightedCell={dataset === activeDataset ? highlightedCell : null}
-                maxRows={maxEditRows}
                 onCellChange={(rowIndex, columnIndex, value) =>
                   onCellChange(dataset, rowIndex, columnIndex, value)
                 }

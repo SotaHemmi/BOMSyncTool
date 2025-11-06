@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import type { ColumnRole, DatasetKey, ParseResult } from '../types';
 import { datasetLabel } from '../utils';
-import { getColumnIndexById } from '../utils/bom';
 import { Dropzone } from './Dropzone';
-import { PreviewTable, deriveColumns } from './DatasetCard';
+import { PreviewTable } from './DatasetCard';
+import { deriveColumns } from '../core/bom-columns';
+import { useColumnSamples } from '../hooks/useColumnSamples';
 
 export interface BOMDatasetAdapter {
   dataset: DatasetKey;
@@ -73,41 +74,12 @@ function collectWarnings(parseResult: ParseResult | null, fallbackErrors?: strin
   }));
 }
 
-function buildColumnIndexMap(columns: { id: string; name: string }[], parseResult: ParseResult): Map<string, number> {
-  const map = new Map<string, number>();
-  columns.forEach((column, index) => {
-    const resolvedIndex = getColumnIndexById(parseResult, column.id);
-    map.set(column.id, resolvedIndex >= 0 ? resolvedIndex : index);
-  });
-  return map;
-}
-
 function DropzonePreview({ dataset, adapter }: DropzonePreviewProps) {
   const datasetLabelText = useMemo(() => datasetLabel(dataset), [dataset]);
   const parseResult = adapter.parseResult;
   const hasData = Boolean(parseResult);
   const columns = useMemo(() => (parseResult ? deriveColumns(parseResult) : []), [parseResult]);
-  const columnSamples = useMemo(() => {
-    if (!parseResult) return new Map<string, string>();
-    const samples = new Map<string, string>();
-    const columnIndexMap = buildColumnIndexMap(columns, parseResult);
-    columns.forEach(column => {
-      const columnIndex = columnIndexMap.get(column.id) ?? -1;
-      if (columnIndex < 0) return;
-      const values: string[] = [];
-      for (const row of parseResult.rows) {
-        const value = row[columnIndex];
-        if (value && String(value).trim()) {
-          values.push(String(value).trim());
-          if (values.length >= 3) break;
-        }
-      }
-      if (values.length > 0) {
-        samples.set(column.id, values.join(', '));
-      }
-    });
-    return samples;
-  }, [columns, parseResult]);
+  const columnSamples = useColumnSamples(columns, parseResult);
 
   const warnings = useMemo(
     () => collectWarnings(parseResult, adapter.errors),

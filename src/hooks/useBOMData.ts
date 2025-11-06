@@ -11,7 +11,7 @@ import {
   applyPreprocessing,
   type PreprocessOptions
 } from '../core/preprocessing';
-import { deriveColumns } from '../components/DatasetCard';
+import { deriveColumns } from '../core/bom-columns';
 
 type ColumnRoles = Record<string, ColumnRole>;
 

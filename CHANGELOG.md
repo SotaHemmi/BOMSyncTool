@@ -7,7 +7,64 @@
 
 ## [Unreleased]
 
-（次回リリース候補の変更は未確定です）
+### Docs
+- README を現行 React/Tauri 構成に合わせて再編成し、概要・セットアップ・利用フローを簡潔化
+- `docs/USER_GUIDE.md` を追加して操作手順・辞書機能・トラブルシューティングを整理
+- `docs/README.md` を更新し、新しいユーザーガイドへの導線とドキュメント更新方針を明確化
+
+## [0.4.3] - 2025-11-06
+
+### パフォーマンス最適化
+
+**フェーズ1: クイックウィン（体感速度20-30%向上）**
+- `buildColumnIndexMap` を共通ユーティリティに抽出（3コンポーネントで重複していたロジックを統一）
+- `datasetAdapter` の再生成を最適化（依存配列を安定化し、不要な再レンダリングを削減）
+- LocalStorage 書き込みにデバウンス処理を追加（400ms、beforeunload時に自動flush）
+- 不要な依存値を除去し、useMemo/useCallback の効率を改善
+
+**フェーズ2: アルゴリズム最適化（大量データ処理50-70%高速化）**
+- `applyRegistrationToBOM` のアルゴリズムを O(n²) → O(n) に改善（Map構造を使用）
+- `columnSamples` を専用フック `useColumnSamples` に抽出してキャッシュ化
+- ストレージイベントリスナーに `deepEqual` による差分検出を実装（重複更新を回避）
+- `editDatasets` をA/B個別のuseMemoに分割し、不要な再計算を抑制
+
+**フェーズ3: アーキテクチャ改善（保守性・可読性向上）**
+- `AppContext` を実装し、グローバル状態管理を一元化
+- `App.tsx` を大幅にリファクタリング（948行 → 331行、65%削減）
+- `ProjectStorage` クラスを実装し、ストレージ層を分離
+- `EditableTable` に仮想スクロールを実装（200行以上で自動有効化、オーバースキャン8行）
+- `DatasetCard`, `BOMWorkspace`, `EditWorkspace` を React.memo で最適化
+- 循環依存を完全解消（`deriveColumns` を `core/bom-columns.ts` に移動）
+
+### コードの構造改善
+
+**新規フックの追加**
+- `useEditModal`: 編集モーダルの状態とロジックを管理（約360行）
+- `useComparison`: BOM比較・置換処理を管理（約180行）
+- `useProjectSync`: プロジェクト同期ロジックを管理（約120行）
+- `useDatasetHandlers`: データセット操作のハンドラーを集約（約110行）
+
+**ユーティリティの追加**
+- `src/utils/column-utils.ts`: 列インデックスマッピング共通化
+- `src/utils/debounce.ts`: 汎用デバウンス実装（flush機能付き）
+- `src/utils/deep-equal.ts`: 深い等価性チェック（Date/Set/Map対応）
+
+**コンテナコンポーネントの整備**
+- `src/containers/BOMWorkspace.tsx`: BOM操作UIを集約（125行）
+- `src/containers/EditWorkspace.tsx`: 編集モーダルUIを集約（133行）
+
+### 技術的改善
+
+- TypeScript コンパイルエラー: 0件
+- 循環依存: 0件（77ファイル処理）
+- Vite ビルド時間: 588ms（最適化前とほぼ同等）
+- バンドルサイズ: 421.63 kB（微増、許容範囲内）
+
+### 開発者向けドキュメント
+
+- 最適化実装計画を完了状態に更新
+- パフォーマンス分析レポートを追加
+- 最適化チェックリストを整備
 
 ## [0.4.2] - 2025-11-05
 

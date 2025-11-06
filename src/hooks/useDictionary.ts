@@ -14,10 +14,10 @@ import {
   saveExceptionData,
   setProcessing,
   logActivity,
-  getRef,
   getPartNo,
   stringifyJSON,
-  setCellValue
+  setCellValue,
+  getColumnIndexById
 } from '../utils';
 import {
   loadDictionary,
@@ -158,6 +158,39 @@ function ensureRegistrationColumn(dataset: DatasetKey, parseResult: ParseResult)
 
   datasetState[dataset].columnRoles = datasetState[dataset].columnRoles ?? {};
   return columns.length - 1;
+}
+
+function resolveRoleIndices(parseResult: ParseResult, role: string): number[] {
+  const columnIds = parseResult.column_roles?.[role] ?? [];
+  const indices = columnIds
+    .map(columnId => getColumnIndexById(parseResult, columnId))
+    .filter(index => index >= 0);
+
+  if (indices.length === 0) {
+    const guessedIndex = parseResult.guessed_columns?.[role];
+    if (typeof guessedIndex === 'number' && guessedIndex >= 0) {
+      indices.push(guessedIndex);
+    }
+  }
+
+  return indices;
+}
+
+function pickFirstNonEmptyValue(row: string[], indices: number[]): string {
+  for (let i = 0; i < indices.length; i += 1) {
+    const columnIndex = indices[i]!;
+    if (columnIndex < 0 || columnIndex >= row.length) {
+      continue;
+    }
+    const value = row[columnIndex];
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  }
+  return '';
 }
 
 export interface UseDictionaryResult {
@@ -543,21 +576,28 @@ export function useDictionary(): UseDictionaryResult {
 
     try {
       setProcessing(true, 'BOMに登録名を適用中...');
+      const normalizeKey = (value: string) => value.trim().toLowerCase();
+
       const registrationMap = new Map<string, string>();
       registrationEntries.forEach(entry => {
-        const key = entry.partNo.trim().toLowerCase();
-        if (key && entry.registrationName.trim()) {
-          registrationMap.set(key, entry.registrationName);
+        const partKey = normalizeKey(entry.partNo);
+        const registrationName = entry.registrationName.trim();
+        if (partKey && registrationName) {
+          registrationMap.set(partKey, registrationName);
         }
       });
 
-      const exceptionMap = new Map<string, string>();
+      const exceptionMap = new Map<string, Map<string, string>>();
       exceptionEntries.forEach(entry => {
-        const ref = entry.ref.trim().toLowerCase();
-        const partNo = entry.partNo.trim().toLowerCase();
-        if (ref && partNo && entry.registrationName.trim()) {
-          exceptionMap.set(`${ref}:${partNo}`, entry.registrationName);
+        const refKey = normalizeKey(entry.ref);
+        const partKey = normalizeKey(entry.partNo);
+        const registrationName = entry.registrationName.trim();
+        if (!refKey || !partKey || !registrationName) {
+          return;
         }
+        const bucket = exceptionMap.get(refKey) ?? new Map<string, string>();
+        bucket.set(partKey, registrationName);
+        exceptionMap.set(refKey, bucket);
       });
 
       let applied = 0;
@@ -567,20 +607,52 @@ export function useDictionary(): UseDictionaryResult {
         const parseResult = state.parseResult;
         if (!parseResult) return;
 
-        const columnIndex = ensureRegistrationColumn(dataset, parseResult);
-        parseResult.rows.forEach((_row, rowIndex) => {
-          const ref = getRef(parseResult, rowIndex).trim().toLowerCase();
-          const partNo = getPartNo(parseResult, rowIndex).trim().toLowerCase();
-          if (!partNo) return;
-          const exceptionKey = `${ref}:${partNo}`;
-          const registrationName = exceptionMap.get(exceptionKey) ?? registrationMap.get(partNo) ?? '';
-          setCellValue(parseResult, rowIndex, columnIndex, registrationName);
+        const registrationColumnIndex = ensureRegistrationColumn(dataset, parseResult);
+        const rows = parseResult.rows;
+        const refIndices = resolveRoleIndices(parseResult, 'ref');
+        const partNoIndices = resolveRoleIndices(parseResult, 'part_no');
+        const timestamp = new Date().toISOString();
+
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+          const row = rows[rowIndex] ?? [];
+          const partNoValue = pickFirstNonEmptyValue(row, partNoIndices);
+          if (!partNoValue) {
+            continue;
+          }
+          const partKey = normalizeKey(partNoValue);
+          if (!partKey) {
+            continue;
+          }
+
+          let registrationName = '';
+          if (exceptionMap.size > 0) {
+            const refValue = refIndices.length > 0 ? pickFirstNonEmptyValue(row, refIndices) : '';
+            const refKey = refValue ? normalizeKey(refValue) : '';
+            if (refKey) {
+              const perRefMap = exceptionMap.get(refKey);
+              if (perRefMap) {
+                registrationName = perRefMap.get(partKey) ?? '';
+              }
+            }
+          }
+
+          if (!registrationName) {
+            registrationName = registrationMap.get(partKey) ?? '';
+          }
+
+          if (registrationColumnIndex >= 0) {
+            const currentValue = row[registrationColumnIndex] ?? '';
+            if (currentValue !== registrationName) {
+              setCellValue(parseResult, rowIndex, registrationColumnIndex, registrationName);
+            }
+          }
+
           if (registrationName) {
             applied += 1;
           }
-        });
+        }
 
-        state.lastUpdated = new Date().toISOString();
+        state.lastUpdated = timestamp;
       });
 
       if (applied === 0) {

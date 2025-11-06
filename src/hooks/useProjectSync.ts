@@ -1,0 +1,118 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import type { DiffRow, ParseResult } from '../types';
+import type { UseBOMDataResult } from './useBOMData';
+import type { UseProjectsResult } from './useProjects';
+import { datasetState } from '../state/app-state';
+
+interface UseProjectSyncParams {
+  projects: UseProjectsResult;
+  bomA: UseBOMDataResult;
+  bomB: UseBOMDataResult;
+  setCurrentDiffs: (diffs: DiffRow[]) => void;
+  setMergedBom: (bom: ParseResult | null) => void;
+  resetResults: () => void;
+}
+
+export function useProjectSync({
+  projects,
+  bomA,
+  bomB,
+  setCurrentDiffs,
+  setMergedBom,
+  resetResults
+}: UseProjectSyncParams) {
+  const activeProject = useMemo(
+    () =>
+      projects.activeProjectId
+        ? projects.projects.find(project => project.id === projects.activeProjectId) ?? null
+        : null,
+    [projects.activeProjectId, projects.projects]
+  );
+
+  const lastSyncedProjectRef = useRef<{ id: string | null; savedAt: string | null }>({
+    id: null,
+    savedAt: null
+  });
+
+  const syncDatasetsFromState = useCallback(() => {
+    const stateA = datasetState.a;
+    if (stateA.parseResult) {
+      bomA.updateFromParseResult(stateA.parseResult, stateA.fileName);
+    } else {
+      bomA.reset();
+    }
+
+    const stateB = datasetState.b;
+    if (stateB.parseResult) {
+      bomB.updateFromParseResult(stateB.parseResult, stateB.fileName);
+    } else {
+      bomB.reset();
+    }
+  }, [bomA, bomB]);
+
+  const syncDatasetsFromStateRef = useRef(syncDatasetsFromState);
+
+  useEffect(() => {
+    syncDatasetsFromStateRef.current = syncDatasetsFromState;
+  }, [syncDatasetsFromState]);
+
+  useEffect(() => {
+    const handleDataLoaded = () => {
+      syncDatasetsFromStateRef.current();
+    };
+    window.addEventListener('bomsync:dataLoaded', handleDataLoaded);
+    return () => {
+      window.removeEventListener('bomsync:dataLoaded', handleDataLoaded);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeProject) {
+      if (bomA.parseResult) {
+        bomA.reset();
+      }
+      if (bomB.parseResult) {
+        bomB.reset();
+      }
+      resetResults();
+      setCurrentDiffs([]);
+      setMergedBom(null);
+      lastSyncedProjectRef.current = { id: null, savedAt: null };
+      return;
+    }
+
+    const { id, data, name } = activeProject;
+    const savedAt = data.savedAt;
+    const previous = lastSyncedProjectRef.current;
+
+    // プロジェクトIDが変わった時だけ状態をリセット（自動保存時は保持）
+    if (previous.id === id) {
+      // 同じプロジェクトの場合、savedAtが変わっても状態を保持
+      lastSyncedProjectRef.current = { id, savedAt };
+      return;
+    }
+
+    // 異なるプロジェクトに切り替わった場合のみリセット
+    if (data.bomA) {
+      bomA.updateFromParseResult(data.bomA, name);
+    } else if (bomA.parseResult) {
+      bomA.reset();
+    }
+
+    if (data.bomB) {
+      bomB.updateFromParseResult(data.bomB, name);
+    } else if (bomB.parseResult) {
+      bomB.reset();
+    }
+
+    resetResults();
+    setCurrentDiffs([]);
+    setMergedBom(null);
+    lastSyncedProjectRef.current = { id, savedAt };
+  }, [activeProject, bomA, bomB, resetResults, setCurrentDiffs, setMergedBom]);
+
+  return {
+    activeProject,
+    syncDatasetsFromState
+  };
+}

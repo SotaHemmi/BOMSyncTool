@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnRole, ProjectPayload, ProjectRecord } from '../types';
 import {
-  getStoredProjects,
-  saveStoredProjects,
   loadActiveProjectId,
   saveActiveProjectId,
   getFavoriteProjects,
@@ -11,7 +9,9 @@ import {
   saveFavoriteProjectArchive,
   getFavoriteProjectSnapshot,
   FAVORITE_PROJECTS_ARCHIVE_KEY,
-  logActivity
+  logActivity,
+  debounce,
+  deepEqual
 } from '../utils';
 import {
   createEmptyProjectSnapshot,
@@ -22,8 +22,8 @@ import {
   datasetState,
   resetAllState
 } from '../state/app-state';
+import { ProjectStorage, PROJECT_STORAGE_KEY } from '../core/storage';
 
-const PROJECT_STORAGE_KEY = 'bomsync_projects';
 const ACTIVE_PROJECT_KEY = 'bomsync_active_project';
 const FAVORITE_PROJECTS_KEY = 'bomsync_favorite_projects';
 
@@ -125,6 +125,14 @@ export function useProjects(): UseProjectsResult {
   const [favoriteProjects, setFavoriteProjectsState] = useState<Set<string>>(new Set());
   const [favoriteArchive, setFavoriteArchiveState] = useState<Record<string, ProjectRecord>>({});
 
+  const { debounced: debouncedSaveProjects, flush: flushSaveProjects } = useMemo(
+    () =>
+      debounce((next: ProjectRecord[]) => {
+        ProjectStorage.saveAll(next);
+      }, 400),
+    []
+  );
+
   const upsertFavoriteArchive = useCallback(
     (record: ProjectRecord) => {
       setFavoriteArchiveState(prev => {
@@ -167,13 +175,13 @@ export function useProjects(): UseProjectsResult {
           return prev;
         }
         const updated = [...prev, record];
-        saveStoredProjects(updated);
+        debouncedSaveProjects(updated);
         return updated;
       });
 
       return restoredRecord;
     },
-    [favoriteArchive, upsertFavoriteArchive]
+    [debouncedSaveProjects, favoriteArchive, upsertFavoriteArchive]
   );
 
   const setActiveProject = useCallback((projectId: string | null) => {
@@ -182,7 +190,7 @@ export function useProjects(): UseProjectsResult {
   }, []);
 
   useEffect(() => {
-    const storedProjects = getStoredProjects();
+    const storedProjects = ProjectStorage.getAll();
     const favorites = getFavoriteProjects();
     const archive = loadFavoriteProjectArchive();
     const storedActiveId = loadActiveProjectId();
@@ -216,53 +224,72 @@ export function useProjects(): UseProjectsResult {
         return;
       }
 
-      if (event.key === PROJECT_STORAGE_KEY || event.key === null) {
-        const updatedProjects = getStoredProjects();
-        setProjects(updatedProjects);
+      const isProjectEvent = event.key === PROJECT_STORAGE_KEY || event.key === null;
+      const isArchiveEvent = event.key === FAVORITE_PROJECTS_ARCHIVE_KEY || event.key === null;
 
-        if (favoriteProjects.size > 0) {
-          setFavoriteArchiveState(prev => {
-            let needsUpdate = false;
-            const next = { ...prev };
-            favoriteProjects.forEach(favoriteId => {
-              const favoriteRecord = updatedProjects.find(project => project.id === favoriteId);
-              if (favoriteRecord && next[favoriteId] !== favoriteRecord) {
-                next[favoriteId] = favoriteRecord;
-                needsUpdate = true;
-              }
-            });
+      if (isProjectEvent) {
+        const updatedProjects = ProjectStorage.getAll();
+        const projectsChanged = !deepEqual(updatedProjects, projects);
+        const nextProjects = projectsChanged ? updatedProjects : projects;
 
-            if (needsUpdate) {
-              saveFavoriteProjectArchive(next);
-              return next;
-            }
-            return prev;
-          });
+        if (projectsChanged) {
+          setProjects(updatedProjects);
         }
 
-        if (!activeProjectId) {
-          if (updatedProjects.length > 0) {
-            const next = updatedProjects[0];
-            applyProjectPayload(next);
-            setActiveProject(next.id);
-          } else {
-            resetAllState();
-            setActiveProject(null);
+        const projectMap = new Map(nextProjects.map(project => [project.id, project]));
+
+        const trimmedFavorites = new Set<string>();
+        favoriteProjects.forEach(id => {
+          if (projectMap.has(id)) {
+            trimmedFavorites.add(id);
           }
+        });
+
+        if (!deepEqual(trimmedFavorites, favoriteProjects)) {
+          setFavoriteProjectsState(trimmedFavorites);
+          saveFavoriteProjects(trimmedFavorites);
+        }
+
+        setFavoriteArchiveState(prev => {
+          const nextArchive: Record<string, ProjectRecord> = {};
+          trimmedFavorites.forEach(id => {
+            const record = projectMap.get(id);
+            if (record) {
+              nextArchive[id] = record;
+            }
+          });
+
+          if (deepEqual(prev, nextArchive)) {
+            return prev;
+          }
+
+          saveFavoriteProjectArchive(nextArchive);
+          return nextArchive;
+        });
+
+        if (nextProjects.length === 0) {
+          resetAllState();
+          setActiveProject(null);
           return;
         }
 
-        const activeRecord = updatedProjects.find(project => project.id === activeProjectId);
+        if (!activeProjectId) {
+          const first = nextProjects[0];
+          applyProjectPayload(first);
+          setActiveProject(first.id);
+          return;
+        }
+
+        const activeRecord = projectMap.get(activeProjectId);
         if (activeRecord) {
           applyProjectPayload(activeRecord);
-        } else if (updatedProjects.length > 0) {
-          const next = updatedProjects[0];
-          applyProjectPayload(next);
-          setActiveProject(next.id);
-        } else {
-          resetAllState();
-          setActiveProject(null);
+          return;
         }
+
+        const fallback = nextProjects[0];
+        applyProjectPayload(fallback);
+        setActiveProject(fallback.id);
+        return;
       }
 
       if (event.key === ACTIVE_PROJECT_KEY) {
@@ -270,9 +297,12 @@ export function useProjects(): UseProjectsResult {
         if (nextActive === activeProjectId) {
           return;
         }
+
         if (nextActive) {
-          const storedProjects = getStoredProjects();
-          setProjects(storedProjects);
+          const storedProjects = ProjectStorage.getAll();
+          if (!deepEqual(storedProjects, projects)) {
+            setProjects(storedProjects);
+          }
           const record = storedProjects.find(project => project.id === nextActive);
           if (record) {
             applyProjectPayload(record);
@@ -282,22 +312,40 @@ export function useProjects(): UseProjectsResult {
           resetAllState();
           setActiveProject(null);
         }
+        return;
       }
 
       if (event.key === FAVORITE_PROJECTS_KEY) {
         const favorites = getFavoriteProjects();
-        setFavoriteProjectsState(favorites);
+        if (!deepEqual(favorites, favoriteProjects)) {
+          setFavoriteProjectsState(favorites);
+        }
+        return;
       }
 
-      if (event.key === FAVORITE_PROJECTS_ARCHIVE_KEY || event.key === null) {
+      if (isArchiveEvent) {
         const archive = loadFavoriteProjectArchive();
-        setFavoriteArchiveState(archive);
+        setFavoriteArchiveState(prev => (deepEqual(prev, archive) ? prev : archive));
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [activeProjectId, favoriteProjects, setActiveProject, saveFavoriteProjectArchive]);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [activeProjectId, favoriteProjects, projects, setActiveProject]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      flushSaveProjects();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      flushSaveProjects();
+    };
+  }, [flushSaveProjects]);
 
   const createProject = useCallback(
     (name?: string) => {
@@ -316,7 +364,7 @@ export function useProjects(): UseProjectsResult {
 
       setProjects(prev => {
         const updated = [...prev, newProject];
-        saveStoredProjects(updated);
+        debouncedSaveProjects(updated);
         return updated;
       });
 
@@ -325,7 +373,7 @@ export function useProjects(): UseProjectsResult {
       logActivity('新しいタブを作成しました。');
       return newProject;
     },
-    [projects, setActiveProject]
+    [debouncedSaveProjects, projects, setActiveProject]
   );
 
   const loadProject = useCallback(
@@ -388,7 +436,7 @@ export function useProjects(): UseProjectsResult {
       }
 
       setProjects(updated);
-      saveStoredProjects(updated);
+      debouncedSaveProjects(updated);
       const displayName = record.name?.trim() || '未命名タブ';
       logActivity(`タブを「${displayName}」として保存しました。`);
 
@@ -407,7 +455,7 @@ export function useProjects(): UseProjectsResult {
 
       return record;
     },
-    [activeProjectId, favoriteProjects, projects, setActiveProject, upsertFavoriteArchive]
+    [activeProjectId, debouncedSaveProjects, favoriteProjects, projects, setActiveProject, upsertFavoriteArchive]
   );
 
   const deleteProject = useCallback(
@@ -427,7 +475,7 @@ export function useProjects(): UseProjectsResult {
             const nextProject = updated[0];
             applyProjectPayload(nextProject);
             setActiveProject(nextProject.id);
-            saveStoredProjects(updated);
+            debouncedSaveProjects(updated);
           } else {
             // 最後のタブが削除された場合、新しいタブを自動作成
             resetAllState();
@@ -442,12 +490,12 @@ export function useProjects(): UseProjectsResult {
             };
 
             setActiveProject(newProject.id);
-            saveStoredProjects([newProject]);
+            debouncedSaveProjects([newProject]);
             logActivity('新しいタブを作成しました。');
             return [newProject];
           }
         } else {
-          saveStoredProjects(updated);
+          debouncedSaveProjects(updated);
         }
 
         return updated;
@@ -461,7 +509,7 @@ export function useProjects(): UseProjectsResult {
         }
       }
     },
-    [activeProjectId, favoriteProjects, projects, setActiveProject, upsertFavoriteArchive]
+    [activeProjectId, debouncedSaveProjects, favoriteProjects, projects, setActiveProject, upsertFavoriteArchive]
   );
 
   const renameProject = useCallback(
@@ -488,7 +536,7 @@ export function useProjects(): UseProjectsResult {
         const record = { ...current, name: normalized, updatedAt: now };
         next[index] = record;
         updatedRecord = record;
-        saveStoredProjects(next);
+        debouncedSaveProjects(next);
         updated = true;
         changed = true;
         return next;
@@ -516,24 +564,27 @@ export function useProjects(): UseProjectsResult {
       }
       return true;
     },
-    [activeProjectId, favoriteProjects, upsertFavoriteArchive]
+    [activeProjectId, debouncedSaveProjects, favoriteProjects, upsertFavoriteArchive]
   );
 
-  const reorderProject = useCallback((projectId: string, targetIndex: number) => {
-    setProjects(prev => {
-      const currentIndex = prev.findIndex(project => project.id === projectId);
-      if (currentIndex === -1) {
-        return prev;
-      }
-      const clampedIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
-      const updated = [...prev];
-      const [moved] = updated.splice(currentIndex, 1);
-      const insertIndex = currentIndex < clampedIndex ? clampedIndex - 1 : clampedIndex;
-      updated.splice(insertIndex, 0, moved);
-      saveStoredProjects(updated);
-      return updated;
-    });
-  }, []);
+  const reorderProject = useCallback(
+    (projectId: string, targetIndex: number) => {
+      setProjects(prev => {
+        const currentIndex = prev.findIndex(project => project.id === projectId);
+        if (currentIndex === -1) {
+          return prev;
+        }
+        const clampedIndex = Math.max(0, Math.min(targetIndex, prev.length - 1));
+        const updated = [...prev];
+        const [moved] = updated.splice(currentIndex, 1);
+        const insertIndex = currentIndex < clampedIndex ? clampedIndex - 1 : clampedIndex;
+        updated.splice(insertIndex, 0, moved);
+        debouncedSaveProjects(updated);
+        return updated;
+      });
+    },
+    [debouncedSaveProjects]
+  );
 
   const toggleFavorite = useCallback(
     (projectId: string) => {

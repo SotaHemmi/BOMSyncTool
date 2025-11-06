@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect, type CSSProperties } from 'react';
 import type { DiffRow, ParseResult } from '../types';
-import { getPartNo, getColumnIndexById } from '../utils/bom';
-import { deriveColumns } from './DatasetCard';
+import { getPartNo } from '../utils/bom';
+import { buildColumnIndexMap } from '../utils';
+import { deriveColumns } from '../core/bom-columns';
 import {
   ResultsFilter,
   type FilterCounts,
@@ -73,15 +74,6 @@ function mapChangedColumns(
   }
   const labels = changedColumns.map(columnId => columnNameMap.get(columnId) ?? columnId);
   return labels.join(', ');
-}
-
-function buildColumnIndexMap(columns: { id: string; name: string }[], parseResult: ParseResult): Map<string, number> {
-  const map = new Map<string, number>();
-  columns.forEach((column, index) => {
-    const resolvedIndex = getColumnIndexById(parseResult, column.id);
-    map.set(column.id, resolvedIndex >= 0 ? resolvedIndex : index);
-  });
-  return map;
 }
 
 function computeCounts(results: DiffRow[] | null): FilterCounts {
