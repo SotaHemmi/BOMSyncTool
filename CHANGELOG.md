@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2025-11-07
+
+### Added
+- `scripts/set-version.mjs` で単一コマンドからバージョン情報を同期できるようにした
+- `src/version.ts` を追加し、フロントエンドのバージョン表示を `package.json` から自動取得するようにした
+
+### Changed
+- `npm run set-version -- <version>` で `package.json`・README・Tauri 設定・Cargo.toml をまとめて更新できるように整備し、バージョンを v1.0.2 に更新
+
 ## [1.0.1] - 2025-11-07
 
 ### Changed

@@ -23,6 +23,7 @@ import { AppProvider } from './contexts/AppContext';
 import './styles.css';
 import { BOMWorkspace } from './containers/BOMWorkspace';
 import { EditWorkspace } from './containers/EditWorkspace';
+import { appVersion } from './version';
 
 function App() {
   const projects = useProjects();
@@ -229,8 +230,8 @@ function App() {
           <div className="brand">
             <h1>
               BOMSyncTool
-              <span className="brand-version" aria-label="version 0.4.3">
-                v0.4.3
+              <span className="brand-version" aria-label={`version ${appVersion}`}>
+                v{appVersion}
               </span>
             </h1>
           </div>

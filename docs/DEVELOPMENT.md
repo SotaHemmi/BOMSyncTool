@@ -416,15 +416,15 @@ ls -lh src-tauri/target/release/bundle/
 
 ```bash
 # 1. バージョンアップ
-# package.json, src-tauri/Cargo.toml, src-tauri/tauri.conf.json のバージョンを更新
+npm run set-version -- 1.2.3  # package.json を起点に関連ファイルへ反映
 
 # 2. CHANGELOGを更新
 # CHANGELOG.md に変更内容を記載
 
 # 3. コミット
 git add .
-git commit -m "chore: release v0.4.2"
-git tag v0.4.2
+git commit -m "chore: release v1.2.3"
+git tag v1.2.3
 
 # 4. プッシュ
 git push origin main --tags
