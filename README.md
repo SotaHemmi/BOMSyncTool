@@ -1,6 +1,6 @@
 # BOMSyncTool
 
-![Version](https://img.shields.io/badge/version-0.4.2-blue)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![License](https://img.shields.io/badge/license-未設定-lightgrey)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
@@ -12,6 +12,7 @@
 - 差分結果からマージ済み BOM を生成し CSV / XLSX / ECO / CCF / MSF で出力
 - 辞書登録・例外設定を使って社内表記へ一括置換（CSV 入出力対応）
 - Reference 展開や空欄補完など前処理ブロックをワークフローで適用
+- 比較モードに合わせてフィルタや列表示を切り替え、必要な情報だけを確認
 - プロジェクトタブとお気に入りで複数案件を並行管理、差分結果を印刷可能
 
 ## 対応環境

@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect, type CSSProperties } from 'react';
+import { Fragment, useMemo, useState, useEffect, useCallback, type CSSProperties } from 'react';
 import type { DiffRow, ParseResult } from '../types';
-import { getPartNo } from '../utils/bom';
+import { getCellValue, getManufacturer, getPartNo } from '../utils/bom';
 import { buildColumnIndexMap } from '../utils';
 import { deriveColumns } from '../core/bom-columns';
 import {
@@ -44,6 +44,21 @@ const STATUS_NORMALIZE_MAP: Record<string, NormalizedStatus> = {
   unchanged: 'unchanged'
 };
 
+type BaseColumnKey = 'ref' | 'part_no' | 'manufacturer';
+
+interface ColumnSelectionState {
+  compareAll: boolean;
+  base: Record<BaseColumnKey, boolean>;
+}
+
+const BASE_COLUMN_ORDER: BaseColumnKey[] = ['ref', 'part_no', 'manufacturer'];
+
+const BASE_COLUMN_LABELS: Record<BaseColumnKey, string> = {
+  ref: 'リファレンス表示',
+  part_no: '型番表示',
+  manufacturer: 'メーカー名表示'
+};
+
 interface CompareResultsProps {
   results: DiffRow[] | null;
   filter: ResultsFilterType;
@@ -74,6 +89,22 @@ function mapChangedColumns(
   }
   const labels = changedColumns.map(columnId => columnNameMap.get(columnId) ?? columnId);
   return labels.join(', ');
+}
+
+function resolveCellValue(
+  parseResult: ParseResult | null,
+  rowIndex: number | null,
+  columnIndexMap: Map<string, number>,
+  columnId: string
+): string {
+  if (!parseResult || rowIndex === null) {
+    return '';
+  }
+  const resolvedIndex = columnIndexMap.get(columnId);
+  if (resolvedIndex === undefined || resolvedIndex < 0) {
+    return '';
+  }
+  return getCellValue(parseResult, rowIndex, resolvedIndex);
 }
 
 function computeCounts(results: DiffRow[] | null): FilterCounts {
@@ -153,13 +184,30 @@ export function CompareResults({
   replacementStatuses = null
 }: CompareResultsProps) {
   const [showAllRows, setShowAllRows] = useState(false);
+  const [columnSelection, setColumnSelection] = useState<ColumnSelectionState>({
+    compareAll: false,
+    base: {
+      ref: true,
+      part_no: true,
+      manufacturer: true
+    }
+  });
   const isReplacementMode = mode === 'replacement';
   const isComparisonMode = !isReplacementMode;
+  const availableFilters: ResultsFilterType[] = isComparisonMode
+    ? ['all', 'diff']
+    : ['all', 'diff', 'added', 'removed', 'changed'];
 
   // フィルター変更時に表示をリセット
   useEffect(() => {
     setShowAllRows(false);
   }, [filter]);
+
+  useEffect(() => {
+    if (isComparisonMode && filter !== 'all' && filter !== 'diff') {
+      onFilterChange('all');
+    }
+  }, [filter, isComparisonMode, onFilterChange]);
 
   const counts = useMemo(() => computeCounts(results), [results]);
   const filteredResults = useMemo(() => filterResults(results, filter), [results, filter]);
@@ -168,25 +216,129 @@ export function CompareResults({
 
   const columnsA = useMemo(() => (parseA ? deriveColumns(parseA) : []), [parseA]);
   const columnsB = useMemo(() => (parseB ? deriveColumns(parseB) : []), [parseB]);
-  const columnNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    columnsA.forEach(column => {
-      if (!map.has(column.id)) {
-        map.set(column.id, column.name);
-      }
-    });
-    columnsB.forEach(column => {
-      if (!map.has(column.id)) {
-        map.set(column.id, column.name);
-      }
-    });
-    return map;
-  }, [columnsA, columnsB]);
-
   const replacementColumns = useMemo(() => {
     if (!replacementResult) return [];
     return deriveColumns(replacementResult);
   }, [replacementResult]);
+  const columnNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const register = (column: { id: string; name: string }) => {
+      if (!map.has(column.id)) {
+        map.set(column.id, column.name);
+      }
+    };
+    columnsA.forEach(register);
+    columnsB.forEach(register);
+    replacementColumns.forEach(register);
+    return map;
+  }, [columnsA, columnsB, replacementColumns]);
+  const columnRoleMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const applyRoles = (parseResult: ParseResult | null) => {
+      if (!parseResult) return;
+      Object.entries(parseResult.column_roles ?? {}).forEach(([role, ids]) => {
+        ids.forEach(id => {
+          if (!map.has(id)) {
+            map.set(id, role);
+          }
+        });
+      });
+    };
+    applyRoles(parseA);
+    applyRoles(parseB);
+    applyRoles(replacementResult);
+    return map;
+  }, [parseA, parseB, replacementResult]);
+
+  const columnIndexMapA = useMemo(() => {
+    if (!parseA) return new Map<string, number>();
+    return buildColumnIndexMap(columnsA, parseA);
+  }, [columnsA, parseA]);
+  const columnIndexMapB = useMemo(() => {
+    if (!parseB) return new Map<string, number>();
+    return buildColumnIndexMap(columnsB, parseB);
+  }, [columnsB, parseB]);
+
+  const mergedColumns = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    const register = (column: { id: string; name: string }) => {
+      if (!map.has(column.id)) {
+        map.set(column.id, column);
+      }
+    };
+    columnsA.forEach(register);
+    columnsB.forEach(register);
+    replacementColumns.forEach(register);
+    return Array.from(map.values());
+  }, [columnsA, columnsB, replacementColumns]);
+
+  const extraColumns = useMemo(
+    () =>
+      mergedColumns.filter(column => {
+        const role = columnRoleMap.get(column.id);
+        return role !== 'ref' && role !== 'part_no' && role !== 'manufacturer';
+      }),
+    [mergedColumns, columnRoleMap]
+  );
+
+  const computeAllSelected = useCallback(
+    (base: Record<BaseColumnKey, boolean>): boolean => {
+      return BASE_COLUMN_ORDER.every(key => base[key]);
+    },
+    []
+  );
+
+  const handleToggleAll = useCallback(() => {
+    setColumnSelection(prev => {
+      const nextValue = !prev.compareAll;
+      return {
+        compareAll: nextValue,
+        base: prev.base
+      };
+    });
+  }, []);
+
+  const handleToggleBaseColumn = useCallback(
+    (key: BaseColumnKey) => {
+      setColumnSelection(prev => {
+        const nextBase = {
+          ...prev.base,
+          [key]: !prev.base[key]
+        };
+        const compareAll = computeAllSelected(nextBase);
+        return {
+          compareAll,
+          base: nextBase
+        };
+      });
+    },
+    [computeAllSelected]
+  );
+
+  const showRefColumn = columnSelection.compareAll || columnSelection.base.ref;
+  const showPartNumberColumns = columnSelection.compareAll || columnSelection.base.part_no;
+  const showManufacturerColumns = columnSelection.compareAll || columnSelection.base.manufacturer;
+  const isColumnVisible = useCallback(
+    (columnId: string): boolean => {
+      if (columnSelection.compareAll) {
+        return true;
+      }
+      const role = columnRoleMap.get(columnId);
+      if (role === 'ref' || role === 'part_no' || role === 'manufacturer') {
+        return columnSelection.base[role];
+      }
+      return false;
+    },
+    [columnSelection, columnRoleMap]
+  );
+  const comparisonExtraColumns = useMemo(
+    () => extraColumns.filter(column => isColumnVisible(column.id)),
+    [extraColumns, isColumnVisible]
+  );
+  const visibleReplacementColumns = useMemo(
+    () => replacementColumns.filter(column => isColumnVisible(column.id)),
+    [replacementColumns, isColumnVisible]
+  );
   const replacementColumnIndexMap = useMemo(() => {
     if (!replacementResult) return new Map<string, number>();
     return buildColumnIndexMap(replacementColumns, replacementResult);
@@ -286,6 +438,10 @@ export function CompareResults({
     !isLoading &&
     ((isComparisonMode && !hasAnyComparisonResult) ||
       (isReplacementMode && replacementResult === null));
+  const showColumnControls =
+    (isComparisonMode && hasAnyComparisonResult) ||
+    (isReplacementMode && replacementRowCount > 0);
+  const columnControlsDisabled = isLoading || (!hasAnyComparisonResult && replacementRowCount === 0);
 
   return (
     <section className="results-panel" hidden={shouldHidePanel}>
@@ -301,8 +457,49 @@ export function CompareResults({
           exportGroups={groups}
           disabled={filterDisabled}
           filtersEnabled={isReplacementMode || hasAnyComparisonResult}
+          availableFilters={availableFilters}
         />
       </div>
+
+      {showColumnControls ? (
+        <div
+          className="results-column-controls"
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '12px'
+          }}
+        >
+          <label htmlFor="compare-all-columns" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <input
+              id="compare-all-columns"
+              type="checkbox"
+              checked={columnSelection.compareAll}
+              onChange={handleToggleAll}
+              disabled={columnControlsDisabled}
+            />
+            全表示
+          </label>
+          {BASE_COLUMN_ORDER.map(key => (
+            <label
+              key={key}
+              htmlFor={`compare-column-${key}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <input
+                id={`compare-column-${key}`}
+                type="checkbox"
+                checked={columnSelection.base[key]}
+                onChange={() => handleToggleBaseColumn(key)}
+                disabled={columnControlsDisabled}
+              />
+              {BASE_COLUMN_LABELS[key]}
+            </label>
+          ))}
+        </div>
+      ) : null}
 
       <div className="results-table-wrapper">
         {isComparisonMode ? (
@@ -311,9 +508,25 @@ export function CompareResults({
               <thead>
                 <tr>
                   <th>ステータス</th>
-                  <th>Ref</th>
-                  <th>A: 部品型番</th>
-                  <th>B: 部品型番</th>
+                  {showRefColumn ? <th>Ref</th> : null}
+                  {showPartNumberColumns ? (
+                    <>
+                      <th>A: 部品型番</th>
+                      <th>B: 部品型番</th>
+                    </>
+                  ) : null}
+                  {showManufacturerColumns ? (
+                    <>
+                      <th>A: メーカー</th>
+                      <th>B: メーカー</th>
+                    </>
+                  ) : null}
+                  {comparisonExtraColumns.map(column => (
+                    <Fragment key={`header-${column.id}`}>
+                      <th>{`A: ${column.name}`}</th>
+                      <th>{`B: ${column.name}`}</th>
+                    </Fragment>
+                  ))}
                   <th>変更詳細</th>
                 </tr>
               </thead>
@@ -330,14 +543,44 @@ export function CompareResults({
                     result.b_index !== null && parseB
                       ? getPartNo(parseB, result.b_index)
                       : '-';
+                  const manufacturerA =
+                    result.a_index !== null && parseA
+                      ? getManufacturer(parseA, result.a_index)
+                      : '-';
+                  const manufacturerB =
+                    result.b_index !== null && parseB
+                      ? getManufacturer(parseB, result.b_index)
+                      : '-';
                   const rowKey = `${result.ref_value}-${result.status}-${result.a_index ?? 'a'}-${result.b_index ?? 'b'}-${index}`;
+                  const visibleChangedColumns =
+                    result.changed_columns?.filter(columnId => isColumnVisible(columnId)) ?? [];
                   return (
                     <tr key={rowKey}>
                       <td style={{ color: statusColor }}>{statusLabel}</td>
-                      <td>{result.ref_value || '-'}</td>
-                      <td>{partA || '-'}</td>
-                      <td>{partB || '-'}</td>
-                      <td>{mapChangedColumns(result.changed_columns, columnNameMap)}</td>
+                      {showRefColumn ? <td>{result.ref_value || '-'}</td> : null}
+                      {showPartNumberColumns ? (
+                        <>
+                          <td>{partA || '-'}</td>
+                          <td>{partB || '-'}</td>
+                        </>
+                      ) : null}
+                      {showManufacturerColumns ? (
+                        <>
+                          <td>{manufacturerA || '-'}</td>
+                          <td>{manufacturerB || '-'}</td>
+                        </>
+                      ) : null}
+                      {comparisonExtraColumns.map(column => {
+                        const extraA = resolveCellValue(parseA, result.a_index, columnIndexMapA, column.id);
+                        const extraB = resolveCellValue(parseB, result.b_index, columnIndexMapB, column.id);
+                        return (
+                          <Fragment key={`cell-${column.id}-${index}`}>
+                            <td>{extraA || '-'}</td>
+                            <td>{extraB || '-'}</td>
+                          </Fragment>
+                        );
+                      })}
+                      <td>{mapChangedColumns(visibleChangedColumns, columnNameMap)}</td>
                     </tr>
                   );
                 })}
@@ -352,7 +595,7 @@ export function CompareResults({
               <thead>
                 <tr>
                   <th>ステータス</th>
-                  {replacementColumns.map(column => (
+                  {visibleReplacementColumns.map(column => (
                     <th key={column.id}>{column.name}</th>
                   ))}
                 </tr>
@@ -365,7 +608,7 @@ export function CompareResults({
                   return (
                     <tr key={`replacement-${displayIndex}`}>
                       <td style={{ color: STATUS_COLORS[status] ?? '#475569' }}>{statusLabel}</td>
-                      {replacementColumns.map(column => {
+                      {visibleReplacementColumns.map(column => {
                         const index = replacementColumnIndexMap.get(column.id);
                         const resolvedIndex =
                           index !== undefined ? index : replacementColumns.findIndex(col => col.id === column.id);
@@ -378,7 +621,7 @@ export function CompareResults({
                 {replacementHasMoreRows && !showAllRows ? (
                   <tr>
                     <td
-                      colSpan={replacementColumns.length + 1}
+                      colSpan={visibleReplacementColumns.length + 1}
                       style={{
                         textAlign: 'center',
                         fontStyle: 'italic',

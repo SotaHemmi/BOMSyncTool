@@ -20,6 +20,7 @@ interface ResultsFilterProps {
   exportGroups?: ExportGroupConfig[];
   disabled?: boolean;
   filtersEnabled?: boolean;
+  availableFilters?: ResultsFilterType[];
 }
 
 interface FilterButtonConfig {
@@ -45,9 +46,17 @@ export function ResultsFilter({
   onPrint,
   exportGroups,
   disabled = false,
-  filtersEnabled = true
+  filtersEnabled = true,
+  availableFilters
 }: ResultsFilterProps) {
   const groups = useMemo(() => exportGroups ?? [], [exportGroups]);
+  const visibleButtons = useMemo(() => {
+    if (!availableFilters || availableFilters.length === 0) {
+      return FILTER_BUTTONS;
+    }
+    const allowed = new Set(availableFilters);
+    return FILTER_BUTTONS.filter(button => allowed.has(button.key));
+  }, [availableFilters]);
   const isInteractive = filtersEnabled && !disabled;
   const handleFilterClick = (next: ResultsFilterType) => {
     if (!isInteractive) return;
@@ -69,7 +78,7 @@ export function ResultsFilter({
   return (
     <div className="results-filter-controls">
       <div className="results-view-controls">
-        {FILTER_BUTTONS.map(({ key, id, label, className, countKey }) => {
+        {visibleButtons.map(({ key, id, label, className, countKey }) => {
           const buttonCount = countKey ? counts[countKey] : undefined;
           return (
             <button

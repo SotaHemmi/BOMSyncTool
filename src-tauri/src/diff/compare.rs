@@ -147,15 +147,6 @@ fn compare_rows(
         }
     }
 
-    let value_a = parse_a.get_value(idx_a);
-    let value_b = parse_b.get_value(idx_b);
-
-    if value_a != value_b {
-        if let Some(col_ids) = parse_a.column_roles.get("value") {
-            changed_columns.extend(col_ids.clone());
-        }
-    }
-
     // ------------------------------------------------------------------------
     // 全列の比較（より詳細な差分検出）
     // ------------------------------------------------------------------------
