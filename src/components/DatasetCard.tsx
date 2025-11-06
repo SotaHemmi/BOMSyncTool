@@ -307,6 +307,7 @@ function DatasetCardComponent({
               className="ghost-button"
               onClick={onOpenEdit}
               disabled
+              data-tooltip="データを編集します（データ読み込み後に有効）"
             >
               編集
             </button>
@@ -353,6 +354,7 @@ function DatasetCardComponent({
                                 type="button"
                                 onClick={onExportECO}
                                 disabled={isProcessing}
+                                data-tooltip="PADS-ECO形式でエクスポートします"
                               >
                                 PADS-ECO
                               </button>
@@ -362,6 +364,7 @@ function DatasetCardComponent({
                                 type="button"
                                 onClick={onExportCCF}
                                 disabled={isProcessing}
+                                data-tooltip="CCF形式でエクスポートします"
                               >
                                 CCF
                               </button>
@@ -371,6 +374,7 @@ function DatasetCardComponent({
                                 type="button"
                                 onClick={onExportMSF}
                                 disabled={isProcessing}
+                                data-tooltip="MSF形式でエクスポートします"
                               >
                                 MSF
                               </button>
@@ -383,6 +387,7 @@ function DatasetCardComponent({
                         className="ghost-button"
                         onClick={onOpenEdit}
                         disabled={!onOpenEdit || isProcessing}
+                        data-tooltip="データを編集します"
                       >
                         編集
                       </button>
@@ -453,6 +458,7 @@ function DatasetCardComponent({
                         data-default-preprocess={dataset}
                         onClick={onDefaultPreprocess}
                         disabled={!onDefaultPreprocess || isProcessing}
+                        data-tooltip="デフォルトの前処理設定を適用します"
                       >
                         デフォルト前処理を適用
                       </button>

@@ -35,6 +35,7 @@ export function ActivityLog({ logs, onClear }: ActivityLogProps) {
             className="ghost-button"
             onClick={onClear}
             disabled={renderedLogs.length === 0}
+            data-tooltip="アクティビティログを全て削除します"
           >
             ログをクリア
           </button>

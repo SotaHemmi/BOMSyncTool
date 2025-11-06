@@ -115,6 +115,7 @@ export function SettingsModal({
                   type="button"
                   className="icon-button"
                   aria-label="閉じる"
+                  data-tooltip="設定を閉じる"
                   onClick={onCancel}
                 >
                   <CloseIcon className="icon-button-close-icon" />
@@ -211,7 +212,7 @@ export function SettingsModal({
                           <div
                             className="theme-preview-color"
                             style={{ backgroundColor: themeColors.primary }}
-                            title="プライマリカラー"
+                            data-tooltip="プライマリカラー"
                           />
                           <span>プライマリ</span>
                         </div>
@@ -219,7 +220,7 @@ export function SettingsModal({
                           <div
                             className="theme-preview-color"
                             style={{ backgroundColor: themeColors.secondary }}
-                            title="セカンダリカラー（自動生成）"
+                            data-tooltip="セカンダリカラー（自動生成）"
                           />
                           <span>セカンダリ</span>
                         </div>
@@ -227,7 +228,7 @@ export function SettingsModal({
                           <div
                             className="theme-preview-color"
                             style={{ backgroundColor: themeColors.danger }}
-                            title="アラートカラー（自動生成）"
+                            data-tooltip="アラートカラー（自動生成）"
                           />
                           <span>アラート</span>
                         </div>
@@ -271,6 +272,7 @@ export function SettingsModal({
                         className="ghost-button"
                         id="reset-theme-button"
                         onClick={onResetTheme}
+                        data-tooltip="テーマカラーをデフォルトに戻します"
                       >
                         ⟳ テーマを初期化
                       </button>
@@ -292,6 +294,7 @@ export function SettingsModal({
                   type="button"
                   className="ghost-button"
                   onClick={onCancel}
+                  data-tooltip="変更を破棄して設定を閉じる"
                 >
                   キャンセル
                 </button>
@@ -301,6 +304,7 @@ export function SettingsModal({
                 className="primary-button"
                 id="save-settings"
                 disabled={isSaving}
+                data-tooltip="設定を保存して閉じる"
               >
                 設定を保存
               </button>

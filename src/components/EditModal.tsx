@@ -414,6 +414,7 @@ export function EditModal({
               style={{ marginTop: '8px', width: '100%' }}
               onClick={() => handleApplyReplace(dataset)}
               disabled={!data}
+              data-tooltip="指定した文字列を全て置換します"
             >
               置換を実行
             </button>
@@ -468,6 +469,7 @@ export function EditModal({
               style={{ marginTop: '8px', fontSize: '12px' }}
               onClick={() => handleToggleFormatRules(dataset)}
               disabled={!data}
+              data-tooltip="書式ルールの詳細設定を表示・非表示します"
             >
               ⚙️ 書式ルール設定
             </button>
@@ -490,6 +492,7 @@ export function EditModal({
               style={{ marginTop: '12px', width: '100%' }}
               onClick={() => handleApplyPreprocess(dataset)}
               disabled={!data}
+              data-tooltip="選択した前処理オプションをデータに適用します"
             >
               前処理を適用
             </button>
@@ -533,6 +536,7 @@ export function EditModal({
                   type="button"
                   className="icon-button"
                   aria-label="閉じる"
+                  data-tooltip="編集モードを閉じる"
                   onClick={onClose}
                 >
                   <CloseIcon className="icon-button-close-icon" />
@@ -548,6 +552,7 @@ export function EditModal({
                   type="button"
                   className="ghost-button"
                   onClick={onClose}
+                  data-tooltip="変更を破棄して編集モードを閉じる"
                 >
                   閉じる
                 </button>
@@ -558,6 +563,7 @@ export function EditModal({
                 id="apply-edit"
                 onClick={() => onApply(activeDataset)}
                 disabled={applying || !activeDatasetData}
+                data-tooltip="編集内容を確定してBOMデータに反映します"
               >
                 適用
               </button>

@@ -363,45 +363,7 @@ body {
   /* max-widthはJavaScriptで動的に設定 */
 }
 
-.tooltip-arrow {
-  position: absolute;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 6px;
-}
-
-/* 下向き矢印（ツールチップが要素の上） */
-.tooltip-container.position-top .tooltip-arrow {
-  bottom: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-color: rgba(15, 23, 42, 0.96) transparent transparent transparent;
-}
-
-/* 上向き矢印（ツールチップが要素の下） */
-.tooltip-container.position-bottom .tooltip-arrow {
-  top: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-color: transparent transparent rgba(15, 23, 42, 0.96) transparent;
-}
-
-/* 右向き矢印（ツールチップが要素の左） */
-.tooltip-container.position-left .tooltip-arrow {
-  right: -12px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-color: transparent transparent transparent rgba(15, 23, 42, 0.96);
-}
-
-/* 左向き矢印（ツールチップが要素の右） */
-.tooltip-container.position-right .tooltip-arrow {
-  left: -12px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-color: transparent rgba(15, 23, 42, 0.96) transparent transparent;
-}
+/* 矢印は不要なので削除 */
 
 .control-panel {
   display: grid;

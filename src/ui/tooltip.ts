@@ -54,7 +54,7 @@ function positionTooltip(target: HTMLElement) {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
 
-  const spacing = 8;
+  const spacing = 4; // ボタンに近づける
   const margin = 8;
 
   // 利用可能なスペースを計算
@@ -150,27 +150,51 @@ function positionTooltip(target: HTMLElement) {
 }
 
 export function initTooltipSystem() {
-  // ツールチップコンテナを作成
+  // ツールチップコンテナを作成（矢印を削除）
   tooltipElement = document.createElement('div');
   tooltipElement.className = 'tooltip-container';
-  tooltipElement.innerHTML = '<div class="tooltip-content"></div><div class="tooltip-arrow"></div>';
+  tooltipElement.innerHTML = '<div class="tooltip-content"></div>';
   document.body.appendChild(tooltipElement);
 
-  // イベントデリゲーションを使用（mouseoverとmouseoutはバブリングする）
-  document.body.addEventListener('mouseover', (event) => {
+  // mouseenter/mouseleaveを使用（バブリングしないのでイベント委譲できないため、動的に追加）
+  const handleMouseEnter = (event: Event) => {
     const target = event.target as HTMLElement;
     if (target.hasAttribute('data-tooltip')) {
       showTooltip(event);
     }
-  });
+  };
 
-  document.body.addEventListener('mouseout', (event) => {
+  const handleMouseLeave = (event: Event) => {
     const target = event.target as HTMLElement;
     if (target.hasAttribute('data-tooltip')) {
       hideTooltip();
     }
+  };
+
+  // MutationObserverで動的に追加される要素を監視
+  const observer = new MutationObserver(() => {
+    document.querySelectorAll('[data-tooltip]').forEach((element) => {
+      element.removeEventListener('mouseenter', handleMouseEnter);
+      element.removeEventListener('mouseleave', handleMouseLeave);
+      element.addEventListener('mouseenter', handleMouseEnter);
+      element.addEventListener('mouseleave', handleMouseLeave);
+    });
   });
 
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-tooltip']
+  });
+
+  // 初期化時に既存の要素にもイベントを設定
+  document.querySelectorAll('[data-tooltip]').forEach((element) => {
+    element.addEventListener('mouseenter', handleMouseEnter);
+    element.addEventListener('mouseleave', handleMouseLeave);
+  });
+
+  // フォーカス時のツールチップも対応
   document.body.addEventListener('focus', (event) => {
     const target = event.target as HTMLElement;
     if (target.hasAttribute('data-tooltip')) {

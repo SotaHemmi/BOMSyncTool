@@ -132,6 +132,7 @@ function DropzonePreview({ dataset, adapter }: DropzonePreviewProps) {
               if (!adapter.openEdit || adapter.isLoading || !hasData) return;
               adapter.openEdit();
             }}
+            data-tooltip="データを編集します"
           >
             編集
           </button>
@@ -189,6 +190,7 @@ function DropzonePreview({ dataset, adapter }: DropzonePreviewProps) {
               if (!adapter.applyDefaultPreprocess || !hasData) return;
               adapter.applyDefaultPreprocess();
             }}
+            data-tooltip="デフォルトの前処理設定を適用します"
           >
             デフォルト前処理を適用
           </button>
@@ -295,6 +297,7 @@ export function BOMCompare({
             className="outline-button"
             onClick={handleExport}
             disabled={!canExport}
+            data-tooltip="選択したBOMを指定形式で出力します"
           >
             出力
           </button>
@@ -306,6 +309,7 @@ export function BOMCompare({
             className="primary-button"
             onClick={onCompare}
             disabled={!canCompare}
+            data-tooltip="BOM AとBOM Bの差分を比較します"
           >
             差分を比較
           </button>
@@ -314,6 +318,7 @@ export function BOMCompare({
             className="outline-button"
             onClick={onReplace}
             disabled={!canCompare}
+            data-tooltip="BOM AのデータをBOM Bで置き換えます"
           >
             BOM A を BOM B で置き換え
           </button>

@@ -52,6 +52,7 @@ export function ResultsActionBar({
           className="ghost-button"
           onClick={handlePrint}
           disabled={actionsDisabled}
+          data-tooltip="比較結果を印刷します"
         >
           印刷
         </button>
@@ -66,6 +67,7 @@ export function ResultsActionBar({
               className="outline-button"
               onClick={group.handlers.csv}
               disabled={actionsDisabled}
+              data-tooltip="比較結果をCSV形式でエクスポートします"
             >
               CSVエクスポート
             </button>
@@ -79,6 +81,7 @@ export function ResultsActionBar({
               className="outline-button"
               onClick={group.handlers.eco}
               disabled={actionsDisabled}
+              data-tooltip="PADS-ECO形式でエクスポートします"
             >
               ECOエクスポート
             </button>
@@ -92,6 +95,7 @@ export function ResultsActionBar({
               className="outline-button"
               onClick={group.handlers.ccf}
               disabled={actionsDisabled}
+              data-tooltip="CCF形式でエクスポートします"
             >
               CCFエクスポート
             </button>
@@ -105,6 +109,7 @@ export function ResultsActionBar({
               className="outline-button"
               onClick={group.handlers.msf}
               disabled={actionsDisabled}
+              data-tooltip="MSF形式でエクスポートします"
             >
               MSFエクスポート
             </button>

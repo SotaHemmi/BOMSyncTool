@@ -52,6 +52,7 @@ function RegistrationActions({
         className="secondary-button"
         onClick={onExtractFromBOM}
         disabled={isProcessing}
+        data-tooltip="現在のBOMから部品型番と登録名を抽出します"
       >
         📋 BOMから抽出
       </button>
@@ -60,6 +61,7 @@ function RegistrationActions({
         className="secondary-button"
         onClick={onAddRegistration}
         disabled={isProcessing}
+        data-tooltip="新しい登録名エントリを追加します"
       >
         ➕ 行を追加
       </button>
@@ -68,6 +70,7 @@ function RegistrationActions({
         className="ghost-button"
         onClick={onImportCSV}
         disabled={isProcessing}
+        data-tooltip="CSVファイルから登録名リストをインポートします"
       >
         📁 CSVインポート
       </button>
@@ -76,6 +79,7 @@ function RegistrationActions({
         className="ghost-button"
         onClick={onExportCSV}
         disabled={isProcessing}
+        data-tooltip="登録名リストをCSV形式でエクスポートします"
       >
         💾 CSVエクスポート
       </button>
@@ -84,6 +88,7 @@ function RegistrationActions({
         className="primary-button"
         onClick={onApplyRegistrationToBOM}
         disabled={isProcessing}
+        data-tooltip="登録名リストをBOMデータに適用します"
       >
         ✅ BOMに適用
       </button>
@@ -153,6 +158,7 @@ export function DictionaryTab({
             className="delete-button"
             onClick={() => onRemoveRegistration(index)}
             disabled={isProcessing}
+            data-tooltip="この登録名エントリを削除します"
           >
             削除
           </button>
@@ -210,6 +216,7 @@ export function DictionaryTab({
             className="delete-button"
             onClick={() => onRemoveException(index)}
             disabled={isProcessing}
+            data-tooltip="この例外エントリを削除します"
           >
             削除
           </button>
@@ -253,6 +260,7 @@ export function DictionaryTab({
           className="ghost-button"
           onClick={onLoadDictionary}
           disabled={isProcessing}
+          data-tooltip="保存された辞書ファイルを読み込みます"
         >
           ⟳ 辞書を読み込み
         </button>
@@ -261,6 +269,7 @@ export function DictionaryTab({
           className="ghost-button"
           onClick={onSaveDictionary}
           disabled={isProcessing}
+          data-tooltip="辞書をファイルに保存します"
         >
           💾 辞書を保存
         </button>
@@ -269,6 +278,7 @@ export function DictionaryTab({
           className="ghost-button"
           onClick={onImportDictionary}
           disabled={isProcessing}
+          data-tooltip="JSONファイルから辞書をインポートします"
         >
           📁 JSONインポート
         </button>
@@ -277,6 +287,7 @@ export function DictionaryTab({
           className="ghost-button"
           onClick={onExportDictionary}
           disabled={isProcessing}
+          data-tooltip="辞書をJSON形式でエクスポートします"
         >
           ⬇ JSONエクスポート
         </button>
@@ -323,6 +334,7 @@ export function DictionaryTab({
               className="secondary-button"
               onClick={onAddException}
               disabled={isProcessing}
+              data-tooltip="新しい例外エントリを追加します"
             >
               ➕ 行を追加
             </button>
@@ -331,6 +343,7 @@ export function DictionaryTab({
               className="ghost-button"
               onClick={onImportExceptionCSV}
               disabled={isProcessing}
+              data-tooltip="CSVファイルから例外リストをインポートします"
             >
               📁 CSVインポート
             </button>
@@ -339,6 +352,7 @@ export function DictionaryTab({
               className="ghost-button"
               onClick={onExportExceptionCSV}
               disabled={isProcessing}
+              data-tooltip="例外リストをCSV形式でエクスポートします"
             >
               💾 CSVエクスポート
             </button>
@@ -347,6 +361,7 @@ export function DictionaryTab({
               className="primary-button"
               onClick={onApplyExceptionToBOM}
               disabled={isProcessing}
+              data-tooltip="例外リストをBOMデータに適用します"
             >
               ✅ BOMに適用
             </button>
