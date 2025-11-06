@@ -219,6 +219,18 @@ async function loadBomFile(dataset: DatasetKey, path: string, fileName: string) 
   }
 }
 
+#### Editモーダルの前処理
+
+- `applyPreprocessing()` は `core/preprocessing.ts` に集約し、モーダル内で生成した `ParseResult` のコピーに対して実行する。
+- `handleEditApplyPreprocess` では `bom.applyPreprocess` を直接呼ばず、`processed.rows` だけを `editRows` に反映する。
+- 保存は `handleEditApply` 経由でまとめて行い、`parseResult` 本体の更新と `onSave()` を同時に実行する。
+
+```typescript
+const tempParse: ParseResult = { ...bom.parseResult, rows: currentRows };
+const processed = await applyPreprocessing(tempParse, toPreprocessOptions(options));
+setEditRows(prev => ({ ...prev, [dataset]: cloneRows(processed.rows) }));
+```
+
 // ❌ Bad: 長すぎる関数（100行以上）
 function doEverything() {
   // ... 500行のコード
@@ -318,8 +330,8 @@ pub fn process_rows(rows: Vec<BomRow>) -> Vec<BomRow> {
 describe('groupByPartNo', () => {
   it('should group rows by part number', () => {
     const rows = [
-      { ref: 'C1', part_no: '0603B104K', value: '100nF', comment: '' },
-      { ref: 'C2', part_no: '0603B104K', value: '100nF', comment: '' },
+      { ref: 'C1', part_no: '0603B104K' },
+      { ref: 'C2', part_no: '0603B104K' },
     ];
 
     const grouped = groupByPartNo(rows);

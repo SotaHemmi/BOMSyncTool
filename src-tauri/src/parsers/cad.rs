@@ -119,18 +119,8 @@ fn parse_pads_eco_format(content: &str) -> Result<ParseResult, AppError> {
 
         let ref_value = parts[0].to_string();
         let part_value = parts[1].to_string();
-        let value_col = if parts.len() > 2 {
-            parts[2].to_string()
-        } else {
-            String::new()
-        };
-        let comment_col = if parts.len() > 3 {
-            parts[3].to_string()
-        } else {
-            String::new()
-        };
 
-        raw_rows.push(vec![ref_value, part_value, value_col, comment_col]);
+        raw_rows.push(vec![ref_value, part_value]);
     }
 
     if raw_rows.is_empty() {
@@ -143,17 +133,10 @@ fn parse_pads_eco_format(content: &str) -> Result<ParseResult, AppError> {
     let column_roles = HashMap::from([
         ("ref".to_string(), vec!["col-0".to_string()]),
         ("part_no".to_string(), vec!["col-1".to_string()]),
-        ("value".to_string(), vec!["col-2".to_string()]),
-        ("comment".to_string(), vec!["col-3".to_string()]),
     ]);
 
-    // 列の表示順序（ref → part_no → value → comment）
-    let column_order = vec![
-        "col-0".to_string(),
-        "col-1".to_string(),
-        "col-2".to_string(),
-        "col-3".to_string(),
-    ];
+    // 列の表示順序（ref → part_no）
+    let column_order = vec!["col-0".to_string(), "col-1".to_string()];
 
     let row_count = raw_rows.len();
 
@@ -162,12 +145,7 @@ fn parse_pads_eco_format(content: &str) -> Result<ParseResult, AppError> {
         rows: raw_rows,
         column_roles,
         column_order,
-        guessed_columns: HashMap::from([
-            ("ref".to_string(), 0),
-            ("part_no".to_string(), 1),
-            ("value".to_string(), 2),
-            ("comment".to_string(), 3),
-        ]),
+        guessed_columns: HashMap::from([("ref".to_string(), 0), ("part_no".to_string(), 1)]),
         guessed_roles: HashMap::from([
             ("col-0".to_string(), "ref".to_string()),
             ("col-1".to_string(), "part_no".to_string()),
@@ -176,12 +154,7 @@ fn parse_pads_eco_format(content: &str) -> Result<ParseResult, AppError> {
             .iter()
             .map(|e: &ParseError| e.message.clone())
             .collect(),
-        headers: vec![
-            "Ref".to_string(),
-            "Part No".to_string(),
-            "Value".to_string(),
-            "Comment".to_string(),
-        ],
+        headers: vec!["Ref".to_string(), "Part No".to_string()],
         columns: vec![
             ColumnMeta {
                 id: "col-0".to_string(),
@@ -190,14 +163,6 @@ fn parse_pads_eco_format(content: &str) -> Result<ParseResult, AppError> {
             ColumnMeta {
                 id: "col-1".to_string(),
                 name: "Part No".to_string(),
-            },
-            ColumnMeta {
-                id: "col-2".to_string(),
-                name: "Value".to_string(),
-            },
-            ColumnMeta {
-                id: "col-3".to_string(),
-                name: "Comment".to_string(),
             },
         ],
         row_numbers: (1..=row_count).collect(),

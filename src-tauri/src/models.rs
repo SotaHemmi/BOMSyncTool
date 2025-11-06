@@ -42,7 +42,7 @@ pub struct ParseResult {
 
     /// 列の役割マッピング（複数列対応）
     ///
-    /// キー: 役割名（"ref", "part_no", "manufacturer", "value" など）
+    /// キー: 役割名（"ref", "part_no", "manufacturer" など）
     /// 値: その役割を持つ列IDの配列
     ///
     /// # 例

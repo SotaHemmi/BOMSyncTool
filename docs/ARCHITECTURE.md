@@ -71,7 +71,7 @@ BOMSyncToolの設計思想、アーキテクチャ、主要コンポーネント
 **d. 前処理パイプライン**
 - `preprocessBlocks`: ブロックの配列
 - `renderPreprocessPipeline()`: パイプラインUI描画
-- `applyPreprocessPipeline()`: パイプライン実行
+- `applyPreprocessing()`: パイプライン実行（`core/preprocessing.ts` へ集約）
 
 **ファイル:**
 - `src/main.ts` (3,543行) - **要モジュール分割**
@@ -193,7 +193,8 @@ BOMSyncToolの設計思想、アーキテクチャ、主要コンポーネント
 - **Header Detector** (`utils/header.rs`):
   - 列名の自動検出
   - 3段階マッチング（完全一致→部分一致→日本語）
-  - Ref, Part_No, Value, Comment, Manufacturerの検出
+  - 標準ロール（Ref / Part_No / Manufacturer / Ignore）の検出
+  - Value や Comment は追加列として扱い、自動ロールには含めない
 - **Text Utils** (`utils/text.rs`):
   - テキスト正規化
   - 文字列処理
@@ -208,29 +209,22 @@ BOMSyncToolの設計思想、アーキテクチャ、主要コンポーネント
 
 **主要モデル:**
 ```rust
-pub struct BomRow {
-    pub ref_: String,           // 部品番号
-    pub part_no: String,        // 部品型番
-    pub value: String,          // 値
-    pub comment: String,        // コメント
-    pub attributes: HashMap<String, String>, // その他の属性
-}
-
+// ParseResult がフロント/バックエンド共通のデータモデル
 pub struct ParseResult {
-    pub bom_data: Vec<BomRow>,              // BOMデータ
-    pub guessed_columns: Option<HashMap<String, usize>>, // 列マッピング
-    pub errors: Vec<String>,                // エラーリスト
-    pub headers: Option<Vec<String>>,       // ヘッダー
-    pub row_numbers: Option<Vec<usize>>,    // 行番号
-    pub structured_errors: Option<Vec<ParseError>>, // 構造化エラー
-}
-
-pub struct DiffRow {
-    pub status: String,         // "added" | "removed" | "modified" | "unchanged"
-    pub a: Option<BomRow>,      // BOM Aの行
-    pub b: Option<BomRow>,      // BOM Bの行
+    pub rows: Vec<Vec<String>>,                 // 元データ
+    pub column_roles: HashMap<String, Vec<String>>, // 役割 → 列ID
+    pub column_order: Vec<String>,             // 表示順序
+    #[deprecated] pub guessed_columns: HashMap<String, usize>,
+    #[deprecated] pub guessed_roles: HashMap<String, String>,
+    pub errors: Vec<String>,                   // メッセージ
+    pub headers: Vec<String>,                  // 元ヘッダー
+    pub columns: Vec<ColumnMeta>,              // 列メタ情報
+    pub row_numbers: Vec<usize>,               // 行番号
+    pub structured_errors: Option<Vec<ParseError>>,
 }
 ```
+
+> ColumnRole の標準値は `ref` / `part_no` / `manufacturer` / `ignore`。その他の列は ColumnMeta と `rows` の生データとして扱い、必要に応じてフロントエンドで任意属性として解釈する。
 
 **ファイル:**
 - `src-tauri/src/models.rs`
@@ -300,7 +294,7 @@ UI更新（色分け表示）
 ```
 User Action (「前処理を適用」クリック)
     ↓
-applyPreprocessPipeline() [TypeScript]
+applyPreprocessing() [TypeScript]
     ↓
 for each enabled block:
     ↓
@@ -314,15 +308,17 @@ for each enabled block:
             ↓
         Processor処理
             ↓
-        Vec<BomRow> (処理後)
+        ParseResult (処理後)
             ↓
-    rows = 処理結果
+    rows = 処理結果.rows
     ↓
 editModalState.workingRows = rows
     ↓
 renderEditTable()
     ↓
 UI更新
+
+※ Edit モーダルでは ParseResult のクローンに対して前処理を適用し、保存までは `bom.parseResult` を直接書き換えない。
 ```
 
 ### 4. CADネットリスト出力フロー

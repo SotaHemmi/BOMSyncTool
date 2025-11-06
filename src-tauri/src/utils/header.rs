@@ -76,32 +76,6 @@ pub fn matches_part_no_header(normalized: &str) -> bool {
     false
 }
 
-/// Valueを示すヘッダーかどうか判定
-pub fn matches_value_header(normalized: &str) -> bool {
-    // 完全一致パターン
-    if normalized == "value"
-        || normalized == "val"
-        || normalized == "値"
-        || normalized == "定数"
-        || normalized == "仕様"
-        || normalized == "数値"
-    {
-        return true;
-    }
-
-    // 部分一致パターン
-    if normalized.contains("value") && !normalized.contains("partno") {
-        return true;
-    }
-
-    // 日本語パターン
-    if normalized.contains("仕様") || normalized.contains("定数") {
-        return true;
-    }
-
-    false
-}
-
 /// コメントを示すヘッダーかどうか判定
 pub fn matches_comment_header(normalized: &str) -> bool {
     // 完全一致パターン

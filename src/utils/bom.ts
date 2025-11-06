@@ -12,7 +12,7 @@ import type { ParseResult, ColumnRole } from '../types';
  * 指定した役割の列インデックスを取得
  *
  * @param parseResult - パース結果
- * @param role - 役割名（"ref", "part_no", "manufacturer", "value" など）
+ * @param role - 役割名（"ref", "part_no", "manufacturer" など）
  * @returns 列インデックスの配列
  */
 export function getColumnIndices(parseResult: ParseResult, role: string): number[] {

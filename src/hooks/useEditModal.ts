@@ -3,6 +3,7 @@ import type { ColumnRole, DatasetKey, ParseResult } from '../types';
 import type { EditModalDataset, EditPreprocessOptions } from '../components/EditModal';
 import type { UseBOMDataResult } from './useBOMData';
 import type { PreprocessOptions } from '../core/preprocessing';
+import { applyPreprocessing } from '../core/preprocessing';
 import { deriveColumns } from '../core/bom-columns';
 import { cloneRows } from '../utils/data-utils';
 
@@ -210,12 +211,20 @@ export function useEditModal({
       }
       setIsProcessing(true);
       try {
-        await bom.applyPreprocess(toPreprocessOptions(options));
-        if (bom.parseResult) {
-          setEditRows(prev => ({ ...prev, [dataset]: cloneRows(bom.parseResult!.rows) }));
-        }
+        // editRows のコピーに対して前処理を適用（生データは変更しない）
+        const currentRows = editRows[dataset] && editRows[dataset].length > 0
+          ? editRows[dataset]
+          : cloneRows(bom.parseResult.rows);
+        const tempParseResult: ParseResult = { ...bom.parseResult, rows: currentRows };
+
+        // 前処理を適用（bom.applyPreprocess ではなく applyPreprocessing を直接呼ぶ）
+        const processed = await applyPreprocessing(tempParseResult, toPreprocessOptions(options));
+
+        // editRows だけ更新（bom.parseResult は変更しない）
+        setEditRows(prev => ({ ...prev, [dataset]: cloneRows(processed.rows) }));
         setEditPreprocessOptionsState(prev => ({ ...prev, [dataset]: { ...options } }));
-        onSave();
+
+        // onSave() は呼ばない（適用ボタンで保存）
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         alert(`前処理の適用に失敗しました: ${message}`);
@@ -223,7 +232,7 @@ export function useEditModal({
         setIsProcessing(false);
       }
     },
-    [getBom, onSave, setIsProcessing]
+    [getBom, editRows, setIsProcessing]
   );
 
   const handleEditApply = useCallback(

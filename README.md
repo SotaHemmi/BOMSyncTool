@@ -1,6 +1,6 @@
 # BOMSyncTool
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.0.1-blue)
 ![License](https://img.shields.io/badge/license-未設定-lightgrey)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
@@ -34,7 +34,7 @@ npm run tauri build # 配布用バイナリを生成
 
 ## 使い方の流れ
 
-1. BOM A/B をドロップし、列役割（Ref / Part_No / Value など）を確認
+1. BOM A/B をドロップし、列役割（Ref / Part_No / Manufacturer / Ignore）を確認
 2. 必要に応じて前処理や辞書適用を実行し、比較ボタンで差分を確認
 3. 結果をフィルタリングして印刷、または CSV / CAD ネットリストとしてエクスポート
 

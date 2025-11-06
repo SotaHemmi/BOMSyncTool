@@ -459,7 +459,7 @@ function normalizeStoredColumnRoles(storedRoles?: Record<string, ColumnRole>): R
  * 列役割の型ガード
  */
 function isColumnRole(value: string): value is ColumnRole {
-  return ['ref', 'part_no', 'manufacturer', 'value', 'package', 'quantity', 'remarks', 'ignore'].includes(value);
+  return ['ref', 'part_no', 'manufacturer', 'ignore'].includes(value);
 }
 
 /**

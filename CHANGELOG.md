@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2025-11-07
+
+### Changed
+- 列役割の標準セットを Ref / Part_No / Manufacturer / Ignore に統一し、ヘッダ検出ロジックと PADS ECO パーサーの出力を整理
+- Edit モーダルの前処理がプレビュー専用のコピーへ適用されるようにし、保存タイミングを明確化
+
+### Docs
+- README のバージョンバッジを v1.0.1 に更新
+- `docs/ARCHITECTURE.md` / `docs/DEVELOPMENT.md` / `docs/USER_GUIDE.md` を最新の前処理ワークフローと列役割仕様に合わせて更新
+
 ## [1.0.0] - 2025-11-06
 
 ### Added
