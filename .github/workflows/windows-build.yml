@@ -84,7 +84,7 @@ jobs:
           & "$env:GITHUB_WORKSPACE\bin\cargo-tauri.exe" build --bundles nsis
 
       # 📦 配布パッケージの準備
-      - name: Prepare distribution package
+      - name: Prepare installer artifact
         shell: powershell
         run: |
           # 配布用ディレクトリを作成
@@ -92,28 +92,6 @@ jobs:
 
           # インストーラーをコピー
           Copy-Item src-tauri/target/release/bundle/nsis/*.exe dist-package/
-
-          # ユーザーマニュアルをコピー
-          Copy-Item docs/USER_MANUAL.md dist-package/
-
-          # README（インストール手順）を作成
-          @"
-          # BOMSyncTool - インストールガイド
-
-          ## インストール方法
-
-          1. このフォルダ内の .exe ファイルをダブルクリックしてください
-          2. インストールウィザードの指示に従ってインストールを完了してください
-          3. インストール完了後、デスクトップまたはスタートメニューから起動できます
-
-          ## ユーザーマニュアル
-
-          このフォルダ内の USER_MANUAL.md を開いて、使い方の詳細をご確認ください。
-
-          ## サポート
-
-          問題が発生した場合は、GitHubのIssuesページで報告してください。
-          "@ | Out-File -FilePath dist-package/README.txt -Encoding UTF8
 
       # 💾 成果物をアップロード
       - name: Upload distribution package
