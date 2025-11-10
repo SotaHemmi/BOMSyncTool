@@ -32,6 +32,9 @@ export interface SettingsModalProps {
   onCancel: () => void;
   dictionaryProps: DictionaryTabProps;
   isSaving?: boolean;
+  onBackupAppData?: () => void;
+  onRestoreAppData?: () => void;
+  isBackupProcessing?: boolean;
 }
 
 export function SettingsModal({
@@ -47,7 +50,10 @@ export function SettingsModal({
   onSave,
   onCancel,
   dictionaryProps,
-  isSaving = false
+  isSaving = false,
+  onBackupAppData,
+  onRestoreAppData,
+  isBackupProcessing = false
 }: SettingsModalProps) {
   const preprocess = useMemo<DefaultPreprocessOptions>(
     () => ({
@@ -184,6 +190,36 @@ export function SettingsModal({
                           書式ルールの適用
                         </label>
                       </div>
+                    </div>
+
+                    <div className="settings-group">
+                      <h3>バックアップ</h3>
+                      <p className="settings-description">
+                        プロジェクトやお気に入りをまとめてエクスポート／インポートします
+                      </p>
+                      <div className="settings-inline-inputs">
+                        <button
+                          type="button"
+                          className="outline-button"
+                          onClick={onBackupAppData}
+                          disabled={!onBackupAppData || isBackupProcessing}
+                          data-tooltip="すべてのプロジェクトと設定をバックアップします"
+                        >
+                          バックアップを作成
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          onClick={onRestoreAppData}
+                          disabled={!onRestoreAppData || isBackupProcessing}
+                          data-tooltip="バックアップファイルから復元します"
+                        >
+                          バックアップから復元
+                        </button>
+                      </div>
+                      {isBackupProcessing ? (
+                        <p className="settings-description">バックアップ処理中...</p>
+                      ) : null}
                     </div>
                   </section>
                 </div>

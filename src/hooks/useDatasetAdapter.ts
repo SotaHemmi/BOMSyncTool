@@ -8,6 +8,9 @@ interface ExportHandlers {
   eco?: () => void;
   ccf?: () => void;
   msf?: () => void;
+  pws?: () => void;
+  bd?: () => void;
+  padsReport?: () => void;
 }
 
 interface UseDatasetAdapterParams {
@@ -50,6 +53,9 @@ export function useDatasetAdapter({
       exportECO: exportHandlers?.eco,
       exportCCF: exportHandlers?.ccf,
       exportMSF: exportHandlers?.msf,
+      exportPWS: exportHandlers?.pws,
+      exportBD: exportHandlers?.bd,
+      exportPADSReport: exportHandlers?.padsReport,
       handleError
     }),
     [
@@ -63,6 +69,9 @@ export function useDatasetAdapter({
       exportHandlers?.ccf,
       exportHandlers?.eco,
       exportHandlers?.msf,
+      exportHandlers?.pws,
+      exportHandlers?.bd,
+      exportHandlers?.padsReport,
       handleError,
       isLoading,
       loadFile,

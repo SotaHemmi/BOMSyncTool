@@ -30,9 +30,16 @@ import {
   open,
   save
 } from '@tauri-apps/plugin-dialog';
+import type { UseBOMDataResult } from './useBOMData';
 
 const REGISTRATION_DICTIONARY_NAME = 'ipc_master';
 const EXCEPTION_DICTIONARY_NAME = 'exception_master';
+
+export interface UseDictionaryOptions {
+  bomA?: UseBOMDataResult;
+  bomB?: UseBOMDataResult;
+  onDatasetsUpdated?: () => void;
+}
 
 function normalizeRegistrationEntries(raw: unknown): RegistrationEntry[] {
   if (!Array.isArray(raw)) return [];
@@ -193,6 +200,9 @@ function pickFirstNonEmptyValue(row: string[], indices: number[]): string {
   return '';
 }
 
+export type ApplyMode = 'replace' | 'append';
+export type TargetDataset = 'a' | 'b';
+
 export interface UseDictionaryResult {
   activeTab: DictionaryTab;
   registrationEntries: RegistrationEntry[];
@@ -201,9 +211,11 @@ export interface UseDictionaryResult {
   addRegistration: () => void;
   removeRegistration: (index: number) => void;
   updateRegistration: (index: number, field: keyof RegistrationEntry, value: string) => void;
+  clearAllRegistrations: () => void;
   addException: () => void;
   removeException: (index: number) => void;
   updateException: (index: number, field: keyof ExceptionEntry, value: string) => void;
+  clearAllExceptions: () => void;
   loadDictionaryFile: () => Promise<void>;
   saveDictionaryFile: () => Promise<void>;
   importDictionaryFile: () => Promise<void>;
@@ -213,11 +225,14 @@ export interface UseDictionaryResult {
   exportRegistrationCSV: () => Promise<void>;
   importExceptionCSV: () => Promise<void>;
   exportExceptionCSV: () => Promise<void>;
-  applyRegistrationToBOM: () => Promise<number>;
+  applyRegistrationToBOM: (mode: ApplyMode, targetDataset: TargetDataset) => Promise<number>;
   reload: () => void;
 }
 
-export function useDictionary(): UseDictionaryResult {
+export function useDictionary(options?: UseDictionaryOptions): UseDictionaryResult {
+  const bomARef = options?.bomA;
+  const bomBRef = options?.bomB;
+  const onDatasetsUpdated = options?.onDatasetsUpdated;
   const [activeTab, setActiveTab] = useState<DictionaryTab>('registration');
   const [registrationEntries, setRegistrationEntries] = useState<RegistrationEntry[]>(
     () => loadRegistrationData()
@@ -272,6 +287,19 @@ export function useDictionary(): UseDictionaryResult {
     [persistRegistrations, registrationEntries]
   );
 
+  const clearAllRegistrations = useCallback(() => {
+    if (registrationEntries.length === 0) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `${registrationEntries.length}件の登録名エントリをすべて削除しますか？この操作は取り消せません。`
+    );
+    if (confirmed) {
+      persistRegistrations([]);
+      logActivity('すべての登録名エントリを削除しました。');
+    }
+  }, [persistRegistrations, registrationEntries.length]);
+
   const addException = useCallback(() => {
     persistExceptions([
       ...exceptionEntries,
@@ -296,6 +324,19 @@ export function useDictionary(): UseDictionaryResult {
     },
     [exceptionEntries, persistExceptions]
   );
+
+  const clearAllExceptions = useCallback(() => {
+    if (exceptionEntries.length === 0) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `${exceptionEntries.length}件の特定部品エントリをすべて削除しますか？この操作は取り消せません。`
+    );
+    if (confirmed) {
+      persistExceptions([]);
+      logActivity('すべての特定部品エントリを削除しました。');
+    }
+  }, [persistExceptions, exceptionEntries.length]);
 
   const loadDictionaryFile = useCallback(async () => {
     try {
@@ -556,8 +597,7 @@ export function useDictionary(): UseDictionaryResult {
     }
   }, [exceptionEntries]);
 
-  const applyRegistrationToBOM = useCallback(async () => {
-    const datasets: DatasetKey[] = ['a', 'b'];
+  const applyRegistrationToBOM = useCallback(async (mode: ApplyMode, targetDataset: TargetDataset) => {
     const hasRegistrations = registrationEntries.length > 0;
     const hasExceptions = exceptionEntries.length > 0;
     if (!hasRegistrations && !hasExceptions) {
@@ -565,17 +605,20 @@ export function useDictionary(): UseDictionaryResult {
       return 0;
     }
 
-    const availableDatasets = datasets.filter(dataset => {
+    const requestedDatasets: DatasetKey[] = [targetDataset];
+
+    const availableDatasets = requestedDatasets.filter(dataset => {
       const state = datasetState[dataset];
       return state.parseResult && state.parseResult.rows.length > 0;
     });
     if (availableDatasets.length === 0) {
-      alert('BOMデータがありません。先にBOMを読み込んでください。');
+      const datasetNames = requestedDatasets.map(d => `BOM ${d.toUpperCase()}`).join('と');
+      alert(`${datasetNames}のデータがありません。先にBOMを読み込んでください。`);
       return 0;
     }
 
     try {
-      setProcessing(true, 'BOMに登録名を適用中...');
+      setProcessing(true, mode === 'append' ? 'BOMに行を追加中...' : 'BOMに登録名を適用中...');
       const normalizeKey = (value: string) => value.trim().toLowerCase();
 
       const registrationMap = new Map<string, string>();
@@ -601,65 +644,130 @@ export function useDictionary(): UseDictionaryResult {
       });
 
       let applied = 0;
+      let datasetsMutated = false;
 
       availableDatasets.forEach(dataset => {
         const state = datasetState[dataset];
         const parseResult = state.parseResult;
         if (!parseResult) return;
 
+        const beforeColumnCount = parseResult.columns?.length ?? 0;
         const registrationColumnIndex = ensureRegistrationColumn(dataset, parseResult);
+        const afterColumnCount = parseResult.columns?.length ?? 0;
+        let datasetMutated = afterColumnCount > beforeColumnCount;
         const rows = parseResult.rows;
         const refIndices = resolveRoleIndices(parseResult, 'ref');
         const partNoIndices = resolveRoleIndices(parseResult, 'part_no');
         const timestamp = new Date().toISOString();
 
-        for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-          const row = rows[rowIndex] ?? [];
-          const partNoValue = pickFirstNonEmptyValue(row, partNoIndices);
-          if (!partNoValue) {
-            continue;
-          }
-          const partKey = normalizeKey(partNoValue);
-          if (!partKey) {
-            continue;
-          }
+        if (mode === 'append') {
+          const allEntries: Array<{ ref: string; partNo: string; registrationName: string }> = [];
 
-          let registrationName = '';
-          if (exceptionMap.size > 0) {
-            const refValue = refIndices.length > 0 ? pickFirstNonEmptyValue(row, refIndices) : '';
-            const refKey = refValue ? normalizeKey(refValue) : '';
-            if (refKey) {
-              const perRefMap = exceptionMap.get(refKey);
-              if (perRefMap) {
-                registrationName = perRefMap.get(partKey) ?? '';
+          registrationEntries.forEach(entry => {
+            if (entry.partNo.trim() && entry.registrationName.trim()) {
+              allEntries.push({
+                ref: '',
+                partNo: entry.partNo.trim(),
+                registrationName: entry.registrationName.trim()
+              });
+            }
+          });
+
+          exceptionEntries.forEach(entry => {
+            if (entry.ref.trim() && entry.partNo.trim() && entry.registrationName.trim()) {
+              allEntries.push({
+                ref: entry.ref.trim(),
+                partNo: entry.partNo.trim(),
+                registrationName: entry.registrationName.trim()
+              });
+            }
+          });
+
+          const columnCount = parseResult.columns?.length ?? 0;
+          allEntries.forEach(entry => {
+            const newRow = Array(columnCount).fill('');
+
+            if (refIndices.length > 0 && entry.ref) {
+              newRow[refIndices[0]!] = entry.ref;
+            }
+
+            if (partNoIndices.length > 0) {
+              newRow[partNoIndices[0]!] = entry.partNo;
+            }
+
+            if (registrationColumnIndex >= 0) {
+              newRow[registrationColumnIndex] = entry.registrationName;
+            }
+
+            rows.push(newRow);
+            applied += 1;
+            datasetMutated = true;
+          });
+        } else {
+          for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+            const row = rows[rowIndex] ?? [];
+            const partNoValue = pickFirstNonEmptyValue(row, partNoIndices);
+            if (!partNoValue) {
+              continue;
+            }
+            const partKey = normalizeKey(partNoValue);
+            if (!partKey) {
+              continue;
+            }
+
+            let registrationName = '';
+            if (exceptionMap.size > 0) {
+              const refValue = refIndices.length > 0 ? pickFirstNonEmptyValue(row, refIndices) : '';
+              const refKey = refValue ? normalizeKey(refValue) : '';
+              if (refKey) {
+                const perRefMap = exceptionMap.get(refKey);
+                if (perRefMap) {
+                  registrationName = perRefMap.get(partKey) ?? '';
+                }
               }
             }
-          }
 
-          if (!registrationName) {
-            registrationName = registrationMap.get(partKey) ?? '';
-          }
-
-          if (registrationColumnIndex >= 0) {
-            const currentValue = row[registrationColumnIndex] ?? '';
-            if (currentValue !== registrationName) {
-              setCellValue(parseResult, rowIndex, registrationColumnIndex, registrationName);
+            if (!registrationName) {
+              registrationName = registrationMap.get(partKey) ?? '';
             }
-          }
 
-          if (registrationName) {
-            applied += 1;
+            if (registrationColumnIndex >= 0) {
+              const currentValue = row[registrationColumnIndex] ?? '';
+              if (currentValue !== registrationName) {
+                setCellValue(parseResult, rowIndex, registrationColumnIndex, registrationName);
+                datasetMutated = true;
+              }
+            }
+
+            if (registrationName) {
+              applied += 1;
+            }
           }
         }
 
-        state.lastUpdated = timestamp;
+        if (datasetMutated) {
+          state.lastUpdated = timestamp;
+          datasetsMutated = true;
+          const targetBom = dataset === 'a' ? bomARef : bomBRef;
+          if (targetBom) {
+            const fileName = state.fileName ?? targetBom.fileName ?? null;
+            targetBom.updateFromParseResult(parseResult, fileName);
+          }
+        }
       });
 
       if (applied === 0) {
         alert('適用できる登録名が見つかりませんでした。');
       } else {
-        alert(`${applied}件の登録名をBOMに適用しました。`);
-        logActivity(`${applied}件の登録名をBOMに適用しました。`);
+        const message = mode === 'append'
+          ? `${applied}件の行をBOMに追加しました。`
+          : `${applied}件の登録名をBOMに適用しました。`;
+        alert(message);
+        logActivity(message);
+      }
+
+      if (datasetsMutated && onDatasetsUpdated) {
+        onDatasetsUpdated();
       }
       return applied;
     } catch (error) {
@@ -669,7 +777,7 @@ export function useDictionary(): UseDictionaryResult {
     } finally {
       setProcessing(false);
     }
-  }, [exceptionEntries, registrationEntries]);
+  }, [bomARef, bomBRef, exceptionEntries, onDatasetsUpdated, registrationEntries]);
 
   const reload = useCallback(() => {
     setRegistrationEntries(loadRegistrationData());
@@ -684,9 +792,11 @@ export function useDictionary(): UseDictionaryResult {
     addRegistration,
     removeRegistration,
     updateRegistration,
+    clearAllRegistrations,
     addException,
     removeException,
     updateException,
+    clearAllExceptions,
     loadDictionaryFile,
     saveDictionaryFile,
     importDictionaryFile,

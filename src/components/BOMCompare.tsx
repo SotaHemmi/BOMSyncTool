@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import type { ColumnRole, DatasetKey, ParseResult } from '../types';
-import { datasetLabel } from '../utils';
+import { datasetLabel, formatDateLabel } from '../utils';
 import { Dropzone } from './Dropzone';
 import { PreviewTable } from './DatasetCard';
 import { deriveColumns } from '../core/bom-columns';
 import { useColumnSamples } from '../hooks/useColumnSamples';
+import { requestLayoutAdjustment } from '../ui/layout';
 
 export interface BOMDatasetAdapter {
   dataset: DatasetKey;
@@ -22,6 +23,9 @@ export interface BOMDatasetAdapter {
   exportECO?: () => void;
   exportCCF?: () => void;
   exportMSF?: () => void;
+  exportPWS?: () => void;
+  exportBD?: () => void;
+  exportPADSReport?: () => void;
   handleError?: (error: unknown) => void;
 }
 
@@ -80,6 +84,7 @@ function DropzonePreview({ dataset, adapter }: DropzonePreviewProps) {
   const hasData = Boolean(parseResult);
   const columns = useMemo(() => (parseResult ? deriveColumns(parseResult) : []), [parseResult]);
   const columnSamples = useColumnSamples(columns, parseResult);
+  const previewMetricsKey = parseResult ? `${parseResult.rows.length}:${parseResult.columns?.length ?? 0}` : 'empty';
 
   const warnings = useMemo(
     () => collectWarnings(parseResult, adapter.errors),
@@ -110,16 +115,31 @@ function DropzonePreview({ dataset, adapter }: DropzonePreviewProps) {
     return map;
   }, [adapter.columnRoles, parseResult]);
 
+  const previewTitle = adapter.fileName ?? `${datasetLabelText} プレビュー`;
+  const previewMeta = useMemo(() => {
+    if (!parseResult) {
+      return adapter.fileName ? '読み込み済み' : '未読み込み';
+    }
+    const rowCount = parseResult.rows.length;
+    const formattedDate = adapter.lastUpdated ? formatDateLabel(adapter.lastUpdated) : null;
+    const rowLabel = `${rowCount.toLocaleString()}行`;
+    return formattedDate ? `${rowLabel} | ${formattedDate}` : rowLabel;
+  }, [adapter.fileName, adapter.lastUpdated, parseResult]);
+
+  useEffect(() => {
+    requestLayoutAdjustment(60);
+  }, [previewMetricsKey, adapter.fileName, adapter.lastUpdated]);
+
   return (
     <>
       <div className="drop-preview-header">
         <div>
-          <h3 data-preview-title={dataset}>{`${datasetLabelText} プレビュー`}</h3>
+          <h3 data-preview-title={dataset}>{previewTitle}</h3>
           <p
             className="drop-preview-meta"
             data-preview-meta-short={dataset}
           >
-            -
+            {previewMeta}
           </p>
         </div>
         <div>
@@ -232,7 +252,7 @@ export function BOMCompare({
   const hasAnyData = Boolean(datasetA.parseResult || datasetB.parseResult);
 
   const [exportDataset, setExportDataset] = React.useState<'a' | 'b'>('a');
-  const [exportFormat, setExportFormat] = React.useState<'eco' | 'ccf' | 'msf'>('eco');
+  const [exportFormat, setExportFormat] = React.useState<'eco' | 'ccf' | 'msf' | 'pws' | 'bd' | 'rpt'>('eco');
 
   const handleExport = () => {
     const adapter = exportDataset === 'a' ? datasetA : datasetB;
@@ -242,6 +262,12 @@ export function BOMCompare({
       adapter.exportCCF();
     } else if (exportFormat === 'msf' && adapter.exportMSF) {
       adapter.exportMSF();
+    } else if (exportFormat === 'pws' && adapter.exportPWS) {
+      adapter.exportPWS();
+    } else if (exportFormat === 'bd' && adapter.exportBD) {
+      adapter.exportBD();
+    } else if (exportFormat === 'rpt' && adapter.exportPADSReport) {
+      adapter.exportPADSReport();
     }
   };
 
@@ -286,11 +312,14 @@ export function BOMCompare({
           <select
             className="export-select export-select--format"
             value={exportFormat}
-            onChange={(e) => setExportFormat(e.target.value as 'eco' | 'ccf' | 'msf')}
+            onChange={(e) => setExportFormat(e.target.value as 'eco' | 'ccf' | 'msf' | 'pws' | 'bd' | 'rpt')}
           >
             <option value="eco">PADS-ECO</option>
             <option value="ccf">CCF</option>
             <option value="msf">MSF</option>
+            <option value="pws">PWS</option>
+            <option value="bd">BD</option>
+            <option value="rpt">PADSレポート</option>
           </select>
           <button
             type="button"

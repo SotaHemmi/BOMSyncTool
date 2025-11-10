@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use crate::models::{DiffRow, ParseResult};
 
@@ -28,21 +28,12 @@ pub fn compare_boms(parse_a: &ParseResult, parse_b: &ParseResult) -> Vec<DiffRow
     // ステップ1: Reference値でインデックスマッピングを作成
     // ------------------------------------------------------------------------
 
-    // データセットA: Reference → 行インデックス
-    let mut map_a: HashMap<String, usize> = HashMap::new();
-    for (idx, _) in parse_a.rows.iter().enumerate() {
-        let ref_value = parse_a.get_ref(idx);
-        if !ref_value.is_empty() {
-            map_a.insert(ref_value, idx);
-        }
-    }
-
     // データセットB: Reference → 行インデックス
-    let mut map_b: HashMap<String, usize> = HashMap::new();
+    let mut map_b: HashMap<String, VecDeque<usize>> = HashMap::new();
     for (idx, _) in parse_b.rows.iter().enumerate() {
         let ref_value = parse_b.get_ref(idx);
         if !ref_value.is_empty() {
-            map_b.insert(ref_value, idx);
+            map_b.entry(ref_value).or_default().push_back(idx);
         }
     }
 
@@ -58,17 +49,28 @@ pub fn compare_boms(parse_a: &ParseResult, parse_b: &ParseResult) -> Vec<DiffRow
             continue; // Referenceが空の行はスキップ
         }
 
-        if let Some(&idx_b) = map_b.get(&ref_a) {
-            // 両方に存在 → 内容を比較
-            let (status, changed_columns) = compare_rows(parse_a, idx_a, parse_b, idx_b);
+        if let Some(queue) = map_b.get_mut(&ref_a) {
+            if let Some(idx_b) = queue.pop_front() {
+                // 両方に存在 → 内容を比較
+                let (status, changed_columns) = compare_rows(parse_a, idx_a, parse_b, idx_b);
 
-            diffs.push(DiffRow {
-                status,
-                a_index: Some(idx_a),
-                b_index: Some(idx_b),
-                ref_value: ref_a,
-                changed_columns,
-            });
+                diffs.push(DiffRow {
+                    status,
+                    a_index: Some(idx_a),
+                    b_index: Some(idx_b),
+                    ref_value: ref_a,
+                    changed_columns,
+                });
+            } else {
+                // 対応するBの行が残っていない → 削除扱い
+                diffs.push(DiffRow {
+                    status: "removed".to_string(),
+                    a_index: Some(idx_a),
+                    b_index: None,
+                    ref_value: ref_a,
+                    changed_columns: vec![],
+                });
+            }
         } else {
             // Aのみに存在 → 削除
             diffs.push(DiffRow {
@@ -85,19 +87,13 @@ pub fn compare_boms(parse_a: &ParseResult, parse_b: &ParseResult) -> Vec<DiffRow
     // ステップ3: データセットBのみに存在する行（追加）
     // ------------------------------------------------------------------------
 
-    for (idx_b, _) in parse_b.rows.iter().enumerate() {
-        let ref_b = parse_b.get_ref(idx_b);
-        if ref_b.is_empty() {
-            continue;
-        }
-
-        if !map_a.contains_key(&ref_b) {
-            // Bのみに存在 → 追加
+    for (ref_value, mut indices) in map_b.into_iter() {
+        while let Some(idx_b) = indices.pop_front() {
             diffs.push(DiffRow {
                 status: "added".to_string(),
                 a_index: None,
                 b_index: Some(idx_b),
-                ref_value: ref_b,
+                ref_value: ref_value.clone(),
                 changed_columns: vec![],
             });
         }

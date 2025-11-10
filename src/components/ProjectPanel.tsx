@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { ProjectRecord } from '../types';
 import { CloseIcon } from './icons';
+import { confirm } from '@tauri-apps/plugin-dialog';
 
 interface ProjectPanelProps {
   projects: ProjectRecord[];
@@ -67,13 +68,17 @@ export function ProjectPanel({
       }
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
       if (isArchived) {
         window.alert('お気に入りから削除してから完全に削除してください。');
         return;
       }
       if (!onDelete) return;
-      if (window.confirm(`「${displayName}」を削除しますか？`)) {
+      const confirmed = await confirm(`「${displayName}」を削除しますか？`, {
+        title: 'タブを削除',
+        kind: 'warning'
+      });
+      if (confirmed) {
         onDelete(project.id);
       }
     };
@@ -125,7 +130,7 @@ export function ProjectPanel({
           disabled={isArchived}
           onClick={event => {
             event.stopPropagation();
-            handleDelete();
+            void handleDelete();
           }}
         >
           <CloseIcon className="session-tab-close-icon" />

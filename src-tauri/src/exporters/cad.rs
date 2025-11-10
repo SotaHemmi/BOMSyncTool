@@ -113,3 +113,78 @@ fn group_by_part_no(
 
     grouped
 }
+/// PWS形式でエクスポート
+pub fn export_pws(
+    parse: &ParseResult,
+    diff_map: &HashMap<String, String>,
+    include_comments: bool,
+) -> Result<String, AppError> {
+    let grouped = group_by_part_no(parse, diff_map, include_comments);
+    let mut lines = Vec::new();
+
+    // 品番でソート
+    let mut sorted_part_nos: Vec<_> = grouped.keys().collect();
+    sorted_part_nos.sort();
+
+    for part_no in sorted_part_nos {
+        let refs = grouped.get(part_no).unwrap();
+        let refs_joined = refs.join(",");
+        lines.push(format!("{}:{};", part_no, refs_joined));
+    }
+
+    Ok(lines.join("\n"))
+}
+
+/// BD形式でエクスポート
+pub fn export_bd(
+    parse: &ParseResult,
+    diff_map: &HashMap<String, String>,
+    include_comments: bool,
+) -> Result<String, AppError> {
+    let mut lines = Vec::new();
+
+    for (idx, _) in parse.rows.iter().enumerate() {
+        let ref_value = parse.get_ref(idx);
+        let part_no = parse.get_part_no(idx);
+
+        let mut line = format!("{} {}", ref_value, part_no);
+        if include_comments {
+            let comment = diff_comment(&ref_value, diff_map);
+            if !comment.is_empty() {
+                line.push_str(&format!(" {}", comment));
+            }
+        }
+        lines.push(line);
+    }
+
+    Ok(lines.join("\n"))
+}
+
+/// PADSレポート形式でエクスポート
+pub fn export_pads_report(
+    parse: &ParseResult,
+    diff_map: &HashMap<String, String>,
+    include_comments: bool,
+) -> Result<String, AppError> {
+    let mut lines = vec![
+        "部品表１レポート".to_string(),
+        "参照名       型番           登録名".to_string(),
+        "-----------------------------------------".to_string(),
+    ];
+
+    for (idx, _) in parse.rows.iter().enumerate() {
+        let ref_value = parse.get_ref(idx);
+        let part_no = parse.get_part_no(idx);
+
+        let mut line = format!("{:<12} XXX            {}", ref_value, part_no);
+        if include_comments {
+            let comment = diff_comment(&ref_value, diff_map);
+            if !comment.is_empty() {
+                line.push_str(&format!(" {}", comment));
+            }
+        }
+        lines.push(line);
+    }
+
+    Ok(lines.join("\n"))
+}

@@ -1,5 +1,4 @@
-import { useMemo } from 'react';
-import type { ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import type { ExportGroupConfig } from './exportTypes';
 
 interface ResultsActionBarProps {
@@ -12,6 +11,75 @@ interface ResultsActionBarProps {
 
 const hasHandlers = (group: ExportGroupConfig): boolean =>
   Object.values(group.handlers).some(handler => typeof handler === 'function');
+
+// フォーマット選択肢の定義
+const FORMAT_OPTIONS = [
+  { value: 'csv', label: 'CSV' },
+  { value: 'eco', label: 'PADS-ECO' },
+  { value: 'ccf', label: 'CCF' },
+  { value: 'msf', label: 'MSF' },
+  { value: 'pws', label: 'PWS' },
+  { value: 'bd', label: 'BD' },
+  { value: 'padsReport', label: 'PADSレポート' }
+] as const;
+
+type ExportFormat = (typeof FORMAT_OPTIONS)[number]['value'];
+
+interface ExportGroupProps {
+  group: ExportGroupConfig;
+  disabled: boolean;
+}
+
+function ExportGroup({ group, disabled }: ExportGroupProps) {
+  // 利用可能な最初のフォーマットをデフォルトにする
+  const availableFormats = useMemo(() => {
+    return FORMAT_OPTIONS.filter(opt => group.handlers[opt.value as keyof typeof group.handlers]);
+  }, [group.handlers]);
+
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>(
+    (availableFormats[0]?.value as ExportFormat) || 'csv'
+  );
+
+  const handleExport = () => {
+    const handler = group.handlers[selectedFormat as keyof typeof group.handlers];
+    if (handler && typeof handler === 'function') {
+      handler();
+    }
+  };
+
+  if (availableFormats.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="results-export-group" data-export-source={group.source}>
+      <span className="results-export-title">{group.label}</span>
+      <div className="results-export-controls">
+        <select
+          className="export-select export-select--format"
+          value={selectedFormat}
+          onChange={(e) => setSelectedFormat(e.target.value as ExportFormat)}
+          disabled={disabled}
+        >
+          {availableFormats.map(opt => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="outline-button"
+          onClick={handleExport}
+          disabled={disabled}
+          data-tooltip={`${group.label}を選択した形式でエクスポートします`}
+        >
+          出力
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function ResultsActionBar({
   onPrint,
@@ -57,77 +125,9 @@ export function ResultsActionBar({
           印刷
         </button>
       ) : null}
-      {visibleGroups.map(group => {
-        const buttons: ReactNode[] = [];
-        if (group.handlers.csv) {
-          buttons.push(
-            <button
-              key={`${group.source}-csv`}
-              type="button"
-              className="outline-button"
-              onClick={group.handlers.csv}
-              disabled={actionsDisabled}
-              data-tooltip="比較結果をCSV形式でエクスポートします"
-            >
-              CSVエクスポート
-            </button>
-          );
-        }
-        if (group.handlers.eco) {
-          buttons.push(
-            <button
-              key={`${group.source}-eco`}
-              type="button"
-              className="outline-button"
-              onClick={group.handlers.eco}
-              disabled={actionsDisabled}
-              data-tooltip="PADS-ECO形式でエクスポートします"
-            >
-              ECOエクスポート
-            </button>
-          );
-        }
-        if (group.handlers.ccf) {
-          buttons.push(
-            <button
-              key={`${group.source}-ccf`}
-              type="button"
-              className="outline-button"
-              onClick={group.handlers.ccf}
-              disabled={actionsDisabled}
-              data-tooltip="CCF形式でエクスポートします"
-            >
-              CCFエクスポート
-            </button>
-          );
-        }
-        if (group.handlers.msf) {
-          buttons.push(
-            <button
-              key={`${group.source}-msf`}
-              type="button"
-              className="outline-button"
-              onClick={group.handlers.msf}
-              disabled={actionsDisabled}
-              data-tooltip="MSF形式でエクスポートします"
-            >
-              MSFエクスポート
-            </button>
-          );
-        }
-
-        if (buttons.length === 0) {
-          return null;
-        }
-
-        return (
-          <div className="results-export-group" data-export-source={group.source} key={group.source}>
-            <span className="results-export-title">{group.label}</span>
-            <div className="results-export-buttons">{buttons}</div>
-          </div>
-        );
-      })}
+      {visibleGroups.map(group => (
+        <ExportGroup key={group.source} group={group} disabled={actionsDisabled} />
+      ))}
     </div>
   );
 }
-

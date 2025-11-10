@@ -176,8 +176,12 @@ export function ProjectTabs({
   return (
     <div className="tab-bar">
       <Tabs.Root
-        value={activeProjectId || undefined}
-        onValueChange={onTabChange}
+        value={activeProjectId ?? (projects.length > 0 ? projects[0].id : '')}
+        onValueChange={(value) => {
+          if (value && value !== activeProjectId) {
+            onTabChange(value);
+          }
+        }}
         className="tab-bar-scroll"
       >
         <Tabs.List className="tabs-list">
@@ -188,7 +192,7 @@ export function ProjectTabs({
             const isEditing = editingTabId === project.id;
 
             return (
-              <Tabs.Trigger key={project.id} value={project.id} asChild>
+              <Tabs.Trigger key={project.id} value={project.id} asChild disabled={false}>
                 <div
                   className={`header-tab ${isActive ? 'is-active' : ''} ${isDragging ? 'dragging' : ''}`}
                   draggable={!isEditing}

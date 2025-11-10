@@ -11,6 +11,25 @@ export function debounce<T extends (...args: any[]) => void>(
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   let lastArgs: Parameters<T> | null = null;
 
+  const invoke = (args: Parameters<T>) => {
+    try {
+      const result = func(...args);
+      const maybePromise = result as unknown;
+      if (
+        maybePromise !== null &&
+        (typeof maybePromise === 'object' || typeof maybePromise === 'function') &&
+        'then' in (maybePromise as PromiseLike<unknown>)
+      ) {
+        Promise.resolve(maybePromise)
+          .catch((error: unknown) => {
+            console.error('Debounced function rejected', error);
+          });
+      }
+    } catch (error) {
+      console.error('Debounced function threw an error', error);
+    }
+  };
+
   const debounced = (...args: Parameters<T>) => {
     lastArgs = args;
     if (timeoutId !== null) {
@@ -22,7 +41,7 @@ export function debounce<T extends (...args: any[]) => void>(
       const invokeArgs = lastArgs;
       lastArgs = null;
       if (invokeArgs) {
-        func(...invokeArgs);
+        invoke(invokeArgs);
       }
     }, wait);
   };
@@ -34,7 +53,7 @@ export function debounce<T extends (...args: any[]) => void>(
       const invokeArgs = lastArgs;
       lastArgs = null;
       if (invokeArgs) {
-        func(...invokeArgs);
+        invoke(invokeArgs);
       }
     }
   };

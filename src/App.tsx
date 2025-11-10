@@ -3,7 +3,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
-import type { DictionaryTabProps } from './components/DictionaryTab';
+import type { DictionaryTabProps, ApplyMode, TargetDataset } from './components/DictionaryTab';
 import { SettingsModal, type SettingsTabKey } from './components/SettingsModal';
 import { useProjects } from './hooks/useProjects';
 import { useBOMData } from './hooks/useBOMData';
@@ -24,15 +24,29 @@ import './styles.css';
 import { BOMWorkspace } from './containers/BOMWorkspace';
 import { EditWorkspace } from './containers/EditWorkspace';
 import { appVersion } from './version';
+import { exportAppBackup, importAppBackup } from './core/app-backup';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function App() {
-  const projects = useProjects();
+  const isTauriEnv =
+    typeof window !== 'undefined' &&
+    Boolean((window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+
   const bomA = useBOMData('a');
   const bomB = useBOMData('b');
+  const projects = useProjects(bomA, bomB);
   const settings = useSettings();
-  const dictionary = useDictionary();
+  const dictionary = useDictionary({
+    bomA,
+    bomB,
+    onDatasetsUpdated: () => {
+      projects.saveProject();
+    }
+  });
   const activityLog = useActivityLog();
   const { currentDiffs, setCurrentDiffs, mergedBom, setMergedBom } = useAppState();
+  const [applyMode, setApplyMode] = useState<ApplyMode>('replace');
+  const [targetDataset, setTargetDataset] = useState<TargetDataset>('a');
 
   const appContextValue = useMemo(
     () => ({
@@ -48,6 +62,7 @@ function App() {
 
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>('projects');
+  const [isBackupProcessing, setBackupProcessing] = useState(false);
 
   const defaultPreprocessOptions = useMemo(() => {
     const defaults = settings.settings.defaultPreprocess ?? {
@@ -163,20 +178,31 @@ function App() {
     handleError: datasetHandlersB.handleError
   });
 
-  const handleApplyDictionaryToBOM = useCallback(() => {
+  const handleApplyDictionaryToBOM = useCallback((dataset: TargetDataset) => {
     void (async () => {
-      const applied = await dictionary.applyRegistrationToBOM();
+      setTargetDataset(dataset);
+      const applied = await dictionary.applyRegistrationToBOM(applyMode, dataset);
       if (applied > 0) {
         projects.saveProject();
       }
     })();
-  }, [dictionary, projects.saveProject]);
+  }, [dictionary, applyMode, projects.saveProject]);
+
+  const handleApplyModeChange = useCallback((mode: ApplyMode) => {
+    setApplyMode(mode);
+  }, []);
+
+  const handleTargetDatasetChange = useCallback((dataset: TargetDataset) => {
+    setTargetDataset(dataset);
+  }, []);
 
   const dictionaryProps: DictionaryTabProps = useMemo(
     () => ({
       activeTab: dictionary.activeTab,
       registrationEntries: dictionary.registrationEntries,
       exceptionEntries: dictionary.exceptionEntries,
+      applyMode,
+      targetDataset,
       onTabChange: dictionary.setActiveTab,
       onLoadDictionary: () => void dictionary.loadDictionaryFile(),
       onSaveDictionary: () => void dictionary.saveDictionaryFile(),
@@ -186,18 +212,22 @@ function App() {
       onAddRegistration: dictionary.addRegistration,
       onRegistrationFieldChange: dictionary.updateRegistration,
       onRemoveRegistration: dictionary.removeRegistration,
+      onClearAllRegistrations: dictionary.clearAllRegistrations,
       onImportRegistrationCSV: () => void dictionary.importRegistrationCSV(),
       onExportRegistrationCSV: () => void dictionary.exportRegistrationCSV(),
       onApplyRegistrationToBOM: handleApplyDictionaryToBOM,
       onAddException: dictionary.addException,
       onExceptionFieldChange: dictionary.updateException,
       onRemoveException: dictionary.removeException,
+      onClearAllExceptions: dictionary.clearAllExceptions,
       onImportExceptionCSV: () => void dictionary.importExceptionCSV(),
       onExportExceptionCSV: () => void dictionary.exportExceptionCSV(),
       onApplyExceptionToBOM: handleApplyDictionaryToBOM,
+      onApplyModeChange: handleApplyModeChange,
+      onTargetDatasetChange: handleTargetDatasetChange,
       isProcessing: comparison.isProcessing
     }),
-    [dictionary, handleApplyDictionaryToBOM, comparison.isProcessing]
+    [dictionary, handleApplyDictionaryToBOM, handleApplyModeChange, handleTargetDatasetChange, applyMode, targetDataset, comparison.isProcessing]
   );
 
   const handleProjectTabChange = useCallback(
@@ -222,6 +252,26 @@ function App() {
     settings.applyTheme();
     setSettingsModalOpen(false);
   }, [settings]);
+
+  const handleBackupAppData = useCallback(async () => {
+    if (isBackupProcessing) return;
+    setBackupProcessing(true);
+    try {
+      await exportAppBackup();
+    } finally {
+      setBackupProcessing(false);
+    }
+  }, [isBackupProcessing]);
+
+  const handleRestoreAppData = useCallback(async () => {
+    if (isBackupProcessing) return;
+    setBackupProcessing(true);
+    try {
+      await importAppBackup();
+    } finally {
+      setBackupProcessing(false);
+    }
+  }, [isBackupProcessing]);
 
   return (
     <AppProvider value={appContextValue}>
@@ -248,52 +298,56 @@ function App() {
           </div>
         </header>
 
-        <BOMWorkspace
-          datasetAdapterA={datasetAdapterA}
-          datasetAdapterB={datasetAdapterB}
-          onCompare={comparison.handleCompare}
-          onReplace={comparison.handleReplace}
-          isProcessing={comparison.isProcessing}
-          diffResults={comparison.diffResults}
-          resultsFilter={comparison.resultsFilter}
-          onResultsFilterChange={comparison.setResultsFilter}
-          parseA={bomA.parseResult}
-          parseB={bomB.parseResult}
-          onPrint={() => window.print()}
-          exportGroups={exportGroups}
-          resultMode={activeResultMode}
-          replacementResult={comparison.replacementResult}
-          replacementStatuses={comparison.replacementStatuses}
-          projects={projects}
-          onProjectTabChange={handleProjectTabChange}
-          onOpenProjectInNewWindow={handleOpenProjectInNewWindow}
-          activityLog={activityLog}
-        />
+        <ErrorBoundary>
+          <BOMWorkspace
+            datasetAdapterA={datasetAdapterA}
+            datasetAdapterB={datasetAdapterB}
+            onCompare={comparison.handleCompare}
+            onReplace={comparison.handleReplace}
+            isProcessing={comparison.isProcessing}
+            diffResults={comparison.diffResults}
+            resultsFilter={comparison.resultsFilter}
+            onResultsFilterChange={comparison.setResultsFilter}
+            parseA={bomA.parseResult}
+            parseB={bomB.parseResult}
+            onPrint={() => window.print()}
+            exportGroups={exportGroups}
+            resultMode={activeResultMode}
+            replacementResult={comparison.replacementResult}
+            replacementStatuses={comparison.replacementStatuses}
+            projects={projects}
+            onProjectTabChange={handleProjectTabChange}
+            onOpenProjectInNewWindow={handleOpenProjectInNewWindow}
+            activityLog={activityLog}
+          />
+        </ErrorBoundary>
 
-        <EditWorkspace
-          open={editModal.editModalOpen}
-          activeDataset={editModal.editActiveDataset}
-          datasets={editModal.editDatasets}
-          onOpenChange={editModal.setEditModalOpen}
-          onDatasetChange={editModal.setEditActiveDataset}
-          onCellChange={editModal.handleEditCellChange}
-          onHeaderRoleChange={editModal.handleEditHeaderRoleChange}
-          onApply={editModal.handleEditApply}
-          onClose={() => editModal.setEditModalOpen(false)}
-          onApplyReplace={editModal.handleEditApplyReplace}
-          onApplyPreprocess={editModal.handleEditApplyPreprocess}
-          onCellFocus={editModal.handleEditCellFocus}
-          findReplaceValues={editModal.editFindReplace}
-          setFindReplaceValues={editModal.setEditFindReplace}
-          preprocessOptions={editModal.editPreprocessOptionsState}
-          setPreprocessOptions={editModal.setEditPreprocessOptionsState}
-          defaultPreprocessTemplate={DEFAULT_EDIT_PREPROCESS}
-          formatRulesVisible={editModal.formatRulesVisible}
-          setFormatRulesVisible={editModal.setFormatRulesVisible}
-          highlightedCell={editModal.editHighlightedCell}
-          setHighlightedCell={editModal.setEditHighlightedCell}
-          isProcessing={comparison.isProcessing}
-        />
+        <ErrorBoundary>
+          <EditWorkspace
+            open={editModal.editModalOpen}
+            activeDataset={editModal.editActiveDataset}
+            datasets={editModal.editDatasets}
+            onOpenChange={editModal.setEditModalOpen}
+            onDatasetChange={editModal.setEditActiveDataset}
+            onCellChange={editModal.handleEditCellChange}
+            onHeaderRoleChange={editModal.handleEditHeaderRoleChange}
+            onApply={editModal.handleEditApply}
+            onClose={() => editModal.setEditModalOpen(false)}
+            onApplyReplace={editModal.handleEditApplyReplace}
+            onApplyPreprocess={editModal.handleEditApplyPreprocess}
+            onCellFocus={editModal.handleEditCellFocus}
+            findReplaceValues={editModal.editFindReplace}
+            setFindReplaceValues={editModal.setEditFindReplace}
+            preprocessOptions={editModal.editPreprocessOptionsState}
+            setPreprocessOptions={editModal.setEditPreprocessOptionsState}
+            defaultPreprocessTemplate={DEFAULT_EDIT_PREPROCESS}
+            formatRulesVisible={editModal.formatRulesVisible}
+            setFormatRulesVisible={editModal.setFormatRulesVisible}
+            highlightedCell={editModal.editHighlightedCell}
+            setHighlightedCell={editModal.setEditHighlightedCell}
+            isProcessing={comparison.isProcessing}
+          />
+        </ErrorBoundary>
 
         <SettingsModal
           open={settingsModalOpen}
@@ -323,6 +377,9 @@ function App() {
           onCancel={() => setSettingsModalOpen(false)}
           dictionaryProps={dictionaryProps}
           isSaving={comparison.isProcessing}
+          onBackupAppData={isTauriEnv ? handleBackupAppData : undefined}
+          onRestoreAppData={isTauriEnv ? handleRestoreAppData : undefined}
+          isBackupProcessing={isTauriEnv ? isBackupProcessing : false}
         />
       </main>
     </AppProvider>

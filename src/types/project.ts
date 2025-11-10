@@ -33,6 +33,8 @@ export interface ProjectPayload {
   savedAt: string;
   bomA: ParseResult | null;
   bomB: ParseResult | null;
+  fileNameA?: string | null;
+  fileNameB?: string | null;
   columnRolesA?: Record<string, ColumnRole>;
   columnRolesB?: Record<string, ColumnRole>;
 }

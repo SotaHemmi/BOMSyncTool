@@ -1,6 +1,6 @@
 # BOMSyncTool
 
-![Version](https://img.shields.io/badge/version-1.0.2-blue)
+![Version](https://img.shields.io/badge/version-1.2.0-blue)
 ![License](https://img.shields.io/badge/license-未設定-lightgrey)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
@@ -49,9 +49,11 @@ npm run tauri build # 配布用バイナリを生成
 
 ## ドキュメント
 
-- `docs/USER_GUIDE.md` ― 操作マニュアル
+- `USER_MANUAL.md` ― **初心者向けユーザーマニュアル**（機械操作に不慣れな方向け）
+- `docs/USER_GUIDE.md` ― 操作マニュアル（開発者・エンジニア向け）
 - `docs/ARCHITECTURE.md` ― 技術構成と設計方針
 - `docs/DEVELOPMENT.md` ― 開発環境とコーディング規約
+- `docs/TODO.md` ― 今後の課題と改善項目
 - `CHANGELOG.md` ― バージョン履歴
 
 ライセンスは未設定です。公開前に適切なライセンスを選定してください。

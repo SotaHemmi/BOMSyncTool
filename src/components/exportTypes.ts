@@ -5,6 +5,9 @@ export interface ExportFormatHandlers {
   eco?: () => void;
   ccf?: () => void;
   msf?: () => void;
+  pws?: () => void;
+  bd?: () => void;
+  padsReport?: () => void;
 }
 
 /**

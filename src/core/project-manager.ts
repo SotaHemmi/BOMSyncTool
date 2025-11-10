@@ -263,6 +263,8 @@ export function createProjectSnapshot(): ProjectPayload {
     savedAt: new Date().toISOString(),
     bomA: datasetState.a.parseResult,
     bomB: datasetState.b.parseResult,
+    fileNameA: datasetState.a.fileName,
+    fileNameB: datasetState.b.fileName,
     columnRolesA: { ...datasetState.a.columnRoles },
     columnRolesB: { ...datasetState.b.columnRoles }
   };
@@ -290,8 +292,8 @@ export function createEmptyProjectSnapshot(): ProjectPayload {
  *
  * @returns デフォルトのプロジェクト名
  */
-export function generateDefaultProjectName(): string {
-  const bomAName = datasetState.a.fileName;
+export function generateDefaultProjectName(preferDatasetName = true): string {
+  const bomAName = preferDatasetName ? datasetState.a.fileName : null;
   const timestamp = new Date().toLocaleString('ja-JP');
   if (bomAName) {
     return `${bomAName} ${timestamp}`;
@@ -352,7 +354,7 @@ export async function saveProject(name?: string): Promise<boolean> {
 
   // プロジェクト数制限を適用
   const limited = applyProjectLimit(projects);
-  if (!saveStoredProjects(limited)) {
+  if (!(await saveStoredProjects(limited))) {
     return false;
   }
 
@@ -373,14 +375,14 @@ export function loadProject(record: ProjectRecord): void {
 
   // BOM A
   datasetState.a.parseResult = payload.bomA ? { ...payload.bomA } : null;
-  datasetState.a.fileName = payload.bomA ? record.name ?? null : null;
+  datasetState.a.fileName = payload.bomA ? (payload.fileNameA ?? null) : null;
   datasetState.a.filePath = null;
   datasetState.a.lastUpdated = payload.bomA ? new Date().toISOString() : null;
   datasetState.a.columnRoles = normalizeStoredColumnRoles(payload.columnRolesA);
 
   // BOM B
   datasetState.b.parseResult = payload.bomB ? { ...payload.bomB } : null;
-  datasetState.b.fileName = payload.bomB ? record.name ?? null : null;
+  datasetState.b.fileName = payload.bomB ? (payload.fileNameB ?? null) : null;
   datasetState.b.filePath = null;
   datasetState.b.lastUpdated = payload.bomB ? new Date().toISOString() : null;
   datasetState.b.columnRoles = normalizeStoredColumnRoles(payload.columnRolesB);
@@ -408,6 +410,7 @@ export function loadProject(record: ProjectRecord): void {
  */
 export function resetWorkspace(): void {
   resetAllState();
+  // React hooks が状態変更を検知して自動更新
 }
 
 /**
@@ -834,7 +837,7 @@ export function createProjectTabElement(project: ProjectRecord, favoriteProjects
       event.preventDefault();
       const displayName = project.name ?? '未命名タブ';
       if (confirm(`「${displayName}」を閉じますか？`)) {
-        deleteStoredProject(project.id);
+        void deleteStoredProject(project.id);
       }
     }
   });
@@ -910,7 +913,7 @@ export function createProjectTabElement(project: ProjectRecord, favoriteProjects
     event.stopPropagation();
     const displayName = project.name ?? '未命名タブ';
     if (confirm(`「${displayName}」を削除しますか？`)) {
-      deleteStoredProject(project.id);
+      void deleteStoredProject(project.id);
     }
   });
 
@@ -973,7 +976,7 @@ export function toggleProjectFavorite(projectId: string): void {
 /**
  * プロジェクト名を変更
  */
-export function renameProject(projectId: string, rawName: string): boolean {
+export async function renameProject(projectId: string, rawName: string): Promise<boolean> {
   const projects = getStoredProjects();
   const target = projects.find(project => project.id === projectId);
   if (!target) {
@@ -990,7 +993,7 @@ export function renameProject(projectId: string, rawName: string): boolean {
   target.name = normalized;
   target.updatedAt = new Date().toISOString();
 
-  if (!saveStoredProjects(projects)) {
+  if (!(await saveStoredProjects(projects))) {
     return false;
   }
 
@@ -1043,10 +1046,13 @@ export function startInlineTabRename(
       event.preventDefault();
       committed = true;
       const newName = input.value;
-      if (!renameProject(projectId, newName)) {
-        committed = false;
-        restoreLabel();
-      }
+      void (async () => {
+        const success = await renameProject(projectId, newName);
+        if (!success) {
+          committed = false;
+          restoreLabel();
+        }
+      })();
     } else if (event.key === 'Escape') {
       event.preventDefault();
       restoreLabel();
@@ -1267,14 +1273,14 @@ export async function createNewProjectTab(): Promise<void> {
   const projects = getStoredProjects();
   const newProject: ProjectRecord = {
     id: `${PROJECT_ID_PREFIX}${Date.now()}`,
-    name: null,
+    name: generateDefaultProjectName(false),
     createdAt: snapshot.savedAt,
     updatedAt: snapshot.savedAt,
     data: snapshot
   };
   projects.push(newProject);
   const limited = applyProjectLimit(projects);
-  if (!saveStoredProjects(limited)) {
+  if (!(await saveStoredProjects(limited))) {
     return;
   }
 
@@ -1350,7 +1356,7 @@ export async function autoSaveActiveProject(nameHint?: string): Promise<void> {
   }
 
   const limited = applyProjectLimit(projects);
-  if (!saveStoredProjects(limited)) {
+  if (!(await saveStoredProjects(limited))) {
     return;
   }
 
@@ -1364,27 +1370,67 @@ export async function autoSaveActiveProject(nameHint?: string): Promise<void> {
 /**
  * プロジェクトを削除
  */
-export function deleteStoredProject(projectId: string): void {
+export async function deleteStoredProject(projectId: string): Promise<void> {
   const projects = getStoredProjects();
   const filtered = projects.filter(project => project.id !== projectId);
-  if (!saveStoredProjects(filtered)) {
+  if (!(await saveStoredProjects(filtered))) {
     return;
   }
-  clearProjectOwner(projectId);
-  if (projectId === activeProjectId) {
-    activeProjectId = null;
-    saveActiveProjectId(null);
-    resetAllState();
+
+  // 開いているタブのリストから削除
+  const openTabIds = getOpenTabs();
+  const newOpenTabs = openTabIds.filter(id => id !== projectId);
+  saveOpenTabs(newOpenTabs);
+
+  // お気に入りリストからも削除
+  const favorites = getFavoriteProjects();
+  if (favorites.has(projectId)) {
+    favorites.delete(projectId);
+    saveFavoriteProjects(favorites);
   }
+
+  clearProjectOwner(projectId);
+
+  // 削除したタブがアクティブだった場合
+  if (projectId === activeProjectId) {
+    if (newOpenTabs.length > 0) {
+      // 他のタブがあれば、最後のタブに切り替え
+      const nextProject = filtered.find(p => p.id === newOpenTabs[newOpenTabs.length - 1]);
+      if (nextProject) {
+        loadProject(nextProject);
+      } else {
+        // 開いているタブに対応するプロジェクトが見つからない場合
+        activeProjectId = null;
+        saveActiveProjectId(null);
+        resetAllState();
+        // React hooks が状態変更を検知して自動更新
+      }
+    } else if (filtered.length > 0) {
+      // プロジェクトは残っているが、開いているタブがない場合は最後のプロジェクトを開く
+      const lastProject = filtered[filtered.length - 1];
+      loadProject(lastProject);
+    } else {
+      // プロジェクトが1つもない場合、新しいタブを作成
+      activeProjectId = null;
+      saveActiveProjectId(null);
+      resetAllState();
+      await createNewProjectTab();
+      return; // createNewProjectTabが既にrenderを呼ぶので早期リターン
+    }
+  }
+
   renderProjectTabs();
+  renderHeaderTabs();
+  updateCurrentTabDisplay();
 }
 
 /**
  * プロジェクトを初期化
  */
-export function initializeProjects(): void {
+export async function initializeProjects(): Promise<void> {
   let projects = getStoredProjects();
 
+  // プロジェクトが1つもない場合のみ、空のプロジェクトを作成
   if (projects.length === 0) {
     const snapshot = createEmptyProjectSnapshot();
     const now = snapshot.savedAt;
@@ -1395,11 +1441,13 @@ export function initializeProjects(): void {
       updatedAt: now,
       data: snapshot
     };
-    if (!saveStoredProjects([initialProject])) {
+    if (!(await saveStoredProjects([initialProject]))) {
       return;
     }
     projects = [initialProject];
     activeProjectId = initialProject.id;
+    saveActiveProjectId(initialProject.id);
+    openTab(initialProject.id);
   }
 
   const params = new URLSearchParams(window.location.search);
@@ -1421,7 +1469,15 @@ export function initializeProjects(): void {
   }
 
   if (!target) {
-    target = projects[projects.length - 1];
+    // 開いているタブから最後のタブを探す
+    const openTabIds = getOpenTabs();
+    if (openTabIds.length > 0) {
+      target = projects.find(p => p.id === openTabIds[openTabIds.length - 1]);
+    }
+    // それでも見つからない場合は、最後のプロジェクトを使う
+    if (!target && projects.length > 0) {
+      target = projects[projects.length - 1];
+    }
   }
 
   if (target) {
@@ -1430,6 +1486,7 @@ export function initializeProjects(): void {
     loadProject(target);
   } else {
     renderProjectTabs();
+    renderHeaderTabs();
   }
 }
 
@@ -1533,7 +1590,7 @@ function registerTabDragAndDrop(): void {
         });
       } else if (projectDataJson) {
         // 別ウィンドウからのタブ → このウィンドウに統合
-        mergeProjectFromDataTransfer(projectDataJson);
+        void mergeProjectFromDataTransfer(projectDataJson);
       } else {
         logger.error('Cannot merge project: no project data in DataTransfer');
       }
@@ -1546,7 +1603,7 @@ function registerTabDragAndDrop(): void {
  *
  * @param projectDataJson - プロジェクトデータのJSON文字列
  */
-function mergeProjectFromDataTransfer(projectDataJson: string): void {
+async function mergeProjectFromDataTransfer(projectDataJson: string): Promise<void> {
   try {
     const projectRecord = JSON.parse(projectDataJson) as ProjectRecord;
 
@@ -1563,7 +1620,11 @@ function mergeProjectFromDataTransfer(projectDataJson: string): void {
       projects.push(projectRecord);
     }
 
-    saveStoredProjects(projects);
+    const saved = await saveStoredProjects(projects);
+    if (!saved) {
+      alert('プロジェクトの統合に失敗しました。');
+      return;
+    }
 
     // 統合完了を localStorage に記録（他のウィンドウに通知）
     const mergeEvent = {
@@ -1604,8 +1665,10 @@ export function registerProjectMergeListener(): void {
 
         if (hasProject) {
           // 他のウィンドウに統合されたので、このウィンドウからは削除
-          deleteStoredProject(mergeEvent.projectId);
-          logActivity(`プロジェクトが他のウィンドウに移動しました。`);
+          void (async () => {
+            await deleteStoredProject(mergeEvent.projectId);
+            logActivity(`プロジェクトが他のウィンドウに移動しました。`);
+          })();
         }
       } catch (error) {
         logger.error('Failed to process project merge event:', error);

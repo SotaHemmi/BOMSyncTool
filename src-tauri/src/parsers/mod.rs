@@ -28,8 +28,10 @@ pub fn parse_bom_file(path: String) -> Result<ParseResult, AppError> {
     match ext.as_str() {
         "csv" => csv::parse_csv_file(&path),
         "xlsx" => excel::parse_excel_file(&path),
-        // CADネットリスト形式（ECO/CCF/MSF）
-        "eco" | "ccf" | "msf" | "net" => cad::parse_cad_file(&path),
+        // CADネットリスト形式（ECO/CCF/MSF/PWS/BD/PADSレポート）
+        "eco" | "ccf" | "msf" | "net" | "pws" | "bd" | "rpt" => cad::parse_cad_file(&path),
+        // .txt は内容から形式を自動判定
+        "txt" => cad::parse_cad_file(&path),
         other => Err(AppError::new(format!(
             "サポートされていないファイル形式です: {}",
             other

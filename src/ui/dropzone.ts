@@ -19,6 +19,7 @@ import {
 } from '../utils';
 import { updateActionAvailability } from './event-handlers';
 import { createDatasetPreviewTable, syncPreviewEmptyState } from './dataset-view';
+import { requestLayoutAdjustment } from './layout';
 
 // ネイティブドロップ状態
 const nativeDropState: {
@@ -29,9 +30,18 @@ const nativeDropState: {
   paths: []
 };
 
+// 安全に子要素を削除するヘルパー関数
+function safelyClearChildren(element: HTMLElement | null): void {
+  if (!element || !element.isConnected) {
+    return;
+  }
+  // innerHTML ではなく、個別に削除して React との競合を避ける
+  while (element.firstChild) {
+    element.removeChild(element.firstChild);
+  }
+}
 
-
-function updateDropzone(dataset: DatasetKey) {
+export function updateDropzone(dataset: DatasetKey) {
   logger.log('[updateDropzone] Called for dataset:', dataset);
   const state = datasetState[dataset];
   const result = state.parseResult;
@@ -75,13 +85,13 @@ function updateDropzone(dataset: DatasetKey) {
     if (title) title.textContent = `${datasetLabel(dataset)} プレビュー`;
     if (errorsBox) {
       errorsBox.hidden = true;
-      errorsBox.textContent = '';
+      safelyClearChildren(errorsBox);
     }
     if (preprocessButton) {
       preprocessButton.disabled = true;
     }
     if (tableContainer) {
-      tableContainer.innerHTML = '';
+      safelyClearChildren(tableContainer);
     }
     dropzone.classList.remove('has-data');
     editButtons.forEach(btn => {
@@ -124,21 +134,21 @@ function updateDropzone(dataset: DatasetKey) {
   }
 
   if (tableContainer) {
-    tableContainer.innerHTML = '';
+    safelyClearChildren(tableContainer);
     const table = createDatasetPreviewTable(dataset, 6);
-    if (table) {
+    if (table && tableContainer.isConnected) {
       tableContainer.appendChild(table);
     }
   }
 
   if (errorsBox) {
-    errorsBox.innerHTML = '';
+    safelyClearChildren(errorsBox);
     const structuredErrors = (result.structured_errors ?? []) as Array<{ message: string; severity?: string; row?: number; column?: number }>;
     const simpleErrors = result.errors ?? [];
     const hasStructured = structuredErrors.length > 0;
     const relevantErrors = hasStructured ? structuredErrors : simpleErrors;
 
-    if (relevantErrors.length > 0) {
+    if (relevantErrors.length > 0 && errorsBox.isConnected) {
       const list = document.createElement('ul');
       relevantErrors.slice(0, 3).forEach(err => {
         const li = document.createElement('li');
@@ -166,6 +176,9 @@ function updateDropzone(dataset: DatasetKey) {
 
   updateActionAvailability();
   syncPreviewEmptyState();
+
+  // レイアウトを再計算（dropzoneのコンテンツサイズが変わるため）
+  requestLayoutAdjustment(120);
 }
 
 function onDropzoneFileSelected(dataset: DatasetKey, path: string, fileName: string) {
@@ -195,6 +208,9 @@ async function loadBomFile(dataset: DatasetKey, path: string, fileName: string) 
     updateDropzone(dataset);
     logger.log('[loadBomFile] updateDropzone completed');
     logActivity(`${datasetLabel(dataset)}: ${fileName} を読み込みました (${rowCount}行)`);
+
+    // レイアウトを再計算（control-panel-verticalのサイズが変わるため）
+    requestLayoutAdjustment(150);
 
     window.dispatchEvent(new CustomEvent('bomsync:dataLoaded', { detail: { dataset } }));
   } catch (error) {

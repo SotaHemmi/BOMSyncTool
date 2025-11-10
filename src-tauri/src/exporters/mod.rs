@@ -26,6 +26,11 @@ pub fn export_bom_file(
         "ECO" => cad::export_eco(parse, &diff_map, include_comments),
         "CCF" => cad::export_ccf(parse, &diff_map, include_comments),
         "MSF" => cad::export_msf(parse, &diff_map, include_comments),
+        "PWS" => cad::export_pws(parse, &diff_map, include_comments),
+        "BD" => cad::export_bd(parse, &diff_map, include_comments),
+        "PADSREPORT" | "PADS_REPORT" | "RPT" => {
+            cad::export_pads_report(parse, &diff_map, include_comments)
+        }
         other => Err(AppError::new(format!(
             "未対応のエクスポート形式です: {}",
             other

@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import type { ExportGroupConfig } from '../components/exportTypes';
 import type { ExportContext, ExportSource } from '../core/export-handler';
-import { exportToCSV, exportToCCF, exportToECO, exportToMSF } from '../core/export-handler';
+import { exportToCSV, exportToCCF, exportToECO, exportToMSF, exportToPWS, exportToBD, exportToPADSReport } from '../core/export-handler';
 
 interface UseExportManagerParams {
   exportContext: ExportContext;
@@ -56,7 +56,10 @@ export function useExportManager({
           csv: makeExportHandler('replacement', exportToCSV),
           eco: makeExportHandler('replacement', exportToECO),
           ccf: makeExportHandler('replacement', exportToCCF),
-          msf: makeExportHandler('replacement', exportToMSF)
+          msf: makeExportHandler('replacement', exportToMSF),
+          pws: makeExportHandler('replacement', exportToPWS),
+          bd: makeExportHandler('replacement', exportToBD),
+          padsReport: makeExportHandler('replacement', exportToPADSReport)
         },
         visible: resultMode === 'replacement' && hasReplacementExport
       }

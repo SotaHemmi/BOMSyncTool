@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::models::{AppError, ParseResult};
 
@@ -22,16 +22,16 @@ pub fn update_and_append_boms(
     // ステップ1: Bのマッピングを作成
     // ------------------------------------------------------------------------
 
-    let mut map_b: HashMap<String, usize> = HashMap::new();
+    let mut map_b: HashMap<String, VecDeque<usize>> = HashMap::new();
     for (idx, _) in parse_b.rows.iter().enumerate() {
         let ref_value = parse_b.get_ref(idx);
         if !ref_value.is_empty() {
-            map_b.insert(ref_value, idx);
+            map_b.entry(ref_value).or_default().push_back(idx);
         }
     }
 
     let mut merged_rows = Vec::new();
-    let mut used_refs: HashSet<String> = HashSet::new();
+    let mut used_indices: HashSet<usize> = HashSet::new();
 
     // ------------------------------------------------------------------------
     // ステップ2: Aの行を更新
@@ -40,30 +40,35 @@ pub fn update_and_append_boms(
     for (idx_a, row_a) in parse_a.rows.iter().enumerate() {
         let ref_a = parse_a.get_ref(idx_a);
 
-        if let Some(&idx_b) = map_b.get(&ref_a) {
-            // Bに対応する行がある → Bの値で更新
-            used_refs.insert(ref_a);
+        if let Some(queue) = map_b.get_mut(&ref_a) {
+            if let Some(idx_b) = queue.pop_front() {
+                // Bに対応する行がある → Bの値で更新
+                used_indices.insert(idx_b);
 
-            let row_b = &parse_b.rows[idx_b];
-            let mut merged_row = row_a.clone();
+                let row_b = &parse_b.rows[idx_b];
+                let mut merged_row = row_a.clone();
 
-            // 列ごとに更新（Bに値があれば上書き）
-            for (col_idx, cell_b) in row_b.iter().enumerate() {
-                if !cell_b.trim().is_empty() {
-                    // Aの対応する列を更新（列数が足りなければ拡張）
-                    if col_idx < merged_row.len() {
-                        merged_row[col_idx] = cell_b.clone();
-                    } else {
-                        // Aより列が多い場合は追加
-                        while merged_row.len() < col_idx {
-                            merged_row.push(String::new());
+                // 列ごとに更新（Bに値があれば上書き）
+                for (col_idx, cell_b) in row_b.iter().enumerate() {
+                    if !cell_b.trim().is_empty() {
+                        // Aの対応する列を更新（列数が足りなければ拡張）
+                        if col_idx < merged_row.len() {
+                            merged_row[col_idx] = cell_b.clone();
+                        } else {
+                            // Aより列が多い場合は追加
+                            while merged_row.len() < col_idx {
+                                merged_row.push(String::new());
+                            }
+                            merged_row.push(cell_b.clone());
                         }
-                        merged_row.push(cell_b.clone());
                     }
                 }
-            }
 
-            merged_rows.push(merged_row);
+                merged_rows.push(merged_row);
+            } else {
+                // B側に対応する行が残っていなければ元の行を保持
+                merged_rows.push(row_a.clone());
+            }
         } else {
             // Aのみに存在 → そのまま保持
             merged_rows.push(row_a.clone());
@@ -75,8 +80,7 @@ pub fn update_and_append_boms(
     // ------------------------------------------------------------------------
 
     for (idx_b, row_b) in parse_b.rows.iter().enumerate() {
-        let ref_b = parse_b.get_ref(idx_b);
-        if !used_refs.contains(&ref_b) {
+        if !used_indices.contains(&idx_b) {
             merged_rows.push(row_b.clone());
         }
     }

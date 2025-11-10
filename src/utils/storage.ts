@@ -11,6 +11,12 @@ import type {
 } from '../types';
 import { ProjectStorage } from '../core/storage';
 
+// Tauri環境チェック用ヘルパー
+function isTauriEnvironment(): boolean {
+  return typeof window !== 'undefined' &&
+    Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
+}
+
 // Storage keys
 const ACTIVE_PROJECT_KEY = 'bomsync_active_project';
 const FAVORITE_PROJECTS_KEY = 'bomsync_favorite_projects';
@@ -27,13 +33,21 @@ const THEME_DANGER_KEY = 'theme-danger';
 /**
  * プロジェクト関連
  */
+export async function initializeProjectStorage(): Promise<void> {
+  await ProjectStorage.initialize();
+}
+
+export async function refreshStoredProjects(): Promise<ProjectRecord[]> {
+  await ProjectStorage.syncFromDisk();
+  return ProjectStorage.getAll();
+}
+
 export function getStoredProjects(): ProjectRecord[] {
   return ProjectStorage.getAll();
 }
 
-export function saveStoredProjects(projects: ProjectRecord[]): boolean {
-  ProjectStorage.saveAll(projects);
-  return true;
+export async function saveStoredProjects(projects: ProjectRecord[]): Promise<boolean> {
+  return await ProjectStorage.saveAll(projects);
 }
 
 export function loadActiveProjectId(): string | null {
@@ -63,13 +77,24 @@ export function getFavoriteProjects(): Set<string> {
   }
 }
 
-export function saveFavoriteProjects(favorites: Set<string>) {
-  localStorage.setItem(FAVORITE_PROJECTS_KEY, JSON.stringify(Array.from(favorites)));
+export function saveFavoriteProjects(favorites: Set<string>): boolean {
+  try {
+    localStorage.setItem(FAVORITE_PROJECTS_KEY, JSON.stringify(Array.from(favorites)));
+    return true;
+  } catch (error) {
+    console.error('Failed to save favorite projects', error);
+    alert('お気に入りの保存に失敗しました。');
+    return false;
+  }
 }
 
 export type FavoriteProjectArchive = Record<string, ProjectRecord>;
 
 export function loadFavoriteProjectArchive(): FavoriteProjectArchive {
+  if (isTauriEnvironment()) {
+    return ProjectStorage.getFavoriteArchive();
+  }
+
   const stored = localStorage.getItem(FAVORITE_PROJECTS_ARCHIVE_KEY);
   if (!stored) return {};
   try {
@@ -80,18 +105,26 @@ export function loadFavoriteProjectArchive(): FavoriteProjectArchive {
   }
 }
 
-export function saveFavoriteProjectArchive(archive: FavoriteProjectArchive): boolean {
+export async function saveFavoriteProjectArchive(archive: FavoriteProjectArchive): Promise<boolean> {
+  if (isTauriEnvironment()) {
+    return await ProjectStorage.saveFavoriteArchive(archive);
+  }
+
   try {
     localStorage.setItem(FAVORITE_PROJECTS_ARCHIVE_KEY, JSON.stringify(archive));
     return true;
   } catch (error) {
     console.error('Failed to persist favorite archive to localStorage', error);
-    alert('お気に入りの保存に失敗しました。不要なプロジェクトを削除して空き領域を確保してください。');
+    alert('お気に入りの保存に失敗しました。ストレージ容量を超えている可能性があります。');
     return false;
   }
 }
 
 export function getFavoriteProjectSnapshot(projectId: string): ProjectRecord | null {
+  if (isTauriEnvironment()) {
+    return ProjectStorage.getFavoriteArchiveSnapshot(projectId);
+  }
+
   const archive = loadFavoriteProjectArchive();
   return archive[projectId] ?? null;
 }

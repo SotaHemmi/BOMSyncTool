@@ -8,17 +8,20 @@ import App from './App';
 import { AppStateProvider } from './contexts/AppStateContext';
 import { initTooltipSystem } from './ui/tooltip';
 import { initDynamicLayoutSystem } from './ui/layout';
-import { registerNativeDropBridge } from './ui/dropzone';
+import { initializeProjectStorage } from './utils/storage';
 
-// システム初期化
-initTooltipSystem();
-initDynamicLayoutSystem();
-registerNativeDropBridge();
+async function bootstrap() {
+  await initializeProjectStorage();
+  initTooltipSystem();
+  initDynamicLayoutSystem();
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <AppStateProvider>
-      <App />
-    </AppStateProvider>
-  </React.StrictMode>,
-);
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <AppStateProvider>
+        <App />
+      </AppStateProvider>
+    </React.StrictMode>
+  );
+}
+
+void bootstrap();

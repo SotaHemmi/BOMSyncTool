@@ -86,20 +86,8 @@ export function Dropzone({
     [handleError, onFileLoaded]
   );
 
-  // Tauriネイティブドロップイベントのリスナー
-  useEffect(() => {
-    const handleNativeDrop = (event: Event) => {
-      const customEvent = event as CustomEvent<{ dataset: DatasetKey; path: string; fileName: string }>;
-      if (customEvent.detail.dataset === dataset) {
-        void notifyFileLoaded(customEvent.detail.path, customEvent.detail.fileName);
-      }
-    };
-
-    window.addEventListener('bomsync:nativeDrop', handleNativeDrop);
-    return () => {
-      window.removeEventListener('bomsync:nativeDrop', handleNativeDrop);
-    };
-  }, [dataset, notifyFileLoaded]);
+  // Tauriネイティブドロップイベントの処理は useNativeDrop フックで行う
+  // （BOMWorkspace で統合）
 
   const handleDragEnter = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();

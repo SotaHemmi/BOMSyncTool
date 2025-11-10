@@ -210,89 +210,12 @@ export function updatePreviewCard(dataset: DatasetKey): void {
 
 /**
  * ドロップゾーンの表示を更新
- *
+ * 
+ * @deprecated React hooks が自動的に再レンダリングするため、この関数は不要です
  * @param dataset - データセットキー
  */
 export function updateDropzone(dataset: DatasetKey): void {
-  const state = datasetState[dataset];
-  const dropzone = document.querySelector<HTMLElement>(`.dropzone[data-target="${dataset}"]`);
-  if (!dropzone) return;
-
-  const placeholder = dropzone.querySelector<HTMLElement>(`[data-placeholder="${dataset}"]`);
-  const preview = dropzone.querySelector<HTMLElement>(`[data-preview="${dataset}"]`);
-  const surface = dropzone.querySelector<HTMLElement>(`[data-surface="${dataset}"]`);
-  const statusChip = dropzone.querySelector<HTMLElement>(`[data-status-placeholder="${dataset}"]`);
-  const statusText = statusChip?.querySelector<HTMLElement>('.dataset-status-text');
-  const summaryMeta = preview?.querySelector<HTMLElement>(`[data-preview-meta-short="${dataset}"]`);
-  const tableContainer = preview?.querySelector<HTMLElement>(`[data-preview-table="${dataset}"]`);
-  const errorsBox = preview?.querySelector<HTMLElement>(`[data-preview-errors="${dataset}"]`);
-  const editButtons = Array.from(
-    document.querySelectorAll<HTMLButtonElement>(`[data-open-edit="${dataset}"]`)
-  );
-  const hasResult = Boolean(state.parseResult);
-
-  if (placeholder) {
-    placeholder.hidden = hasResult;
-  }
-  if (preview) {
-    preview.hidden = !hasResult;
-  }
-  if (surface) {
-    if (hasResult) {
-      surface.dataset.hasData = 'true';
-      surface.hidden = false;
-    } else {
-      delete surface.dataset.hasData;
-      surface.hidden = false;
-    }
-  }
-  if (statusChip) {
-    statusChip.hidden = false;
-  }
-  if (statusText) {
-    statusText.textContent = hasResult
-      ? state.fileName
-        ? `${state.fileName} を読み込み済み`
-        : '読み込み済み'
-      : '未読み込み';
-  }
-  dropzone.classList.toggle('has-data', hasResult);
-
-  editButtons.forEach(btn => {
-    btn.disabled = !hasResult;
-  });
-
-  if (hasResult && state.parseResult) {
-    const rowCount = state.parseResult.rows?.length ?? 0;
-    if (summaryMeta) {
-      const lastUpdate = state.lastUpdated ? formatDateLabel(state.lastUpdated) : '';
-      summaryMeta.textContent = `${rowCount}行 | ${lastUpdate}`;
-    }
-    if (tableContainer) {
-      tableContainer.innerHTML = '';
-      const table = createDatasetPreviewTable(dataset, 6);
-      if (table) {
-        tableContainer.appendChild(table);
-      }
-    }
-    if (errorsBox) {
-      if (state.parseResult.errors && state.parseResult.errors.length > 0) {
-        errorsBox.hidden = false;
-        errorsBox.textContent = state.parseResult.errors.map(err => `⚠ ${err}`).join('\n');
-      } else {
-        errorsBox.hidden = true;
-        errorsBox.textContent = '';
-      }
-    }
-  } else {
-    if (tableContainer) {
-      tableContainer.innerHTML = '';
-    }
-    if (errorsBox) {
-      errorsBox.hidden = true;
-      errorsBox.textContent = '';
-    }
-  }
+  // React hooks が状態変更を検知して自動更新するため、何もしない
 }
 
 /**
@@ -316,8 +239,7 @@ export function syncPreviewEmptyState(): void {
 export function updateAllDatasetCards(): void {
   updatePreviewCard('a');
   updatePreviewCard('b');
-  updateDropzone('a');
-  updateDropzone('b');
+  // updateDropzone は React hooks が自動的に再レンダリングするため不要
   syncPreviewEmptyState();
 }
 

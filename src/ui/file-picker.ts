@@ -18,6 +18,8 @@ export function registerFilePickerButtons(onFileSelected: (dataset: DatasetKey, 
       const file = await open({
         filters: [
           { name: 'BOM Files', extensions: ['csv', 'xlsx'] },
+          { name: 'CAD Netlist', extensions: ['eco', 'ccf', 'msf', 'pws', 'bd', 'rpt', 'net'] },
+          { name: 'Text Files', extensions: ['txt'] },
           { name: 'すべてのファイル', extensions: ['*'] }
         ]
       });

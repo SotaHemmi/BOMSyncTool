@@ -5,10 +5,15 @@ import type {
   ExceptionEntry
 } from '../types';
 
+export type ApplyMode = 'replace' | 'append';
+export type TargetDataset = 'a' | 'b';
+
 export interface DictionaryTabProps {
   activeTab: DictionaryTabType;
   registrationEntries: RegistrationEntry[];
   exceptionEntries: ExceptionEntry[];
+  applyMode: ApplyMode;
+  targetDataset: TargetDataset;
   onTabChange: (tab: DictionaryTabType) => void;
   onLoadDictionary: () => void;
   onSaveDictionary: () => void;
@@ -18,81 +23,167 @@ export interface DictionaryTabProps {
   onAddRegistration: () => void;
   onRegistrationFieldChange: (index: number, field: keyof RegistrationEntry, value: string) => void;
   onRemoveRegistration: (index: number) => void;
+  onClearAllRegistrations: () => void;
   onImportRegistrationCSV: () => void;
   onExportRegistrationCSV: () => void;
-  onApplyRegistrationToBOM: () => void;
+  onApplyRegistrationToBOM: (dataset: TargetDataset) => void;
   onAddException: () => void;
   onExceptionFieldChange: (index: number, field: keyof ExceptionEntry, value: string) => void;
   onRemoveException: (index: number) => void;
+  onClearAllExceptions: () => void;
   onImportExceptionCSV: () => void;
   onExportExceptionCSV: () => void;
-  onApplyExceptionToBOM: () => void;
+  onApplyExceptionToBOM: (dataset: TargetDataset) => void;
+  onApplyModeChange: (mode: ApplyMode) => void;
+  onTargetDatasetChange: (dataset: TargetDataset) => void;
   isProcessing?: boolean;
 }
 
 function RegistrationActions({
   isProcessing,
+  applyMode,
+  targetDataset,
   onExtractFromBOM,
   onAddRegistration,
+  onClearAll,
   onImportCSV,
   onExportCSV,
-  onApplyRegistrationToBOM
+  onApplyRegistrationToBOM,
+  onApplyModeChange,
+  onTargetDatasetChange
 }: {
   isProcessing?: boolean;
+  applyMode: ApplyMode;
+  targetDataset: TargetDataset;
   onExtractFromBOM: () => void;
   onAddRegistration: () => void;
+  onClearAll: () => void;
   onImportCSV: () => void;
   onExportCSV: () => void;
-  onApplyRegistrationToBOM: () => void;
+  onApplyRegistrationToBOM: (dataset: TargetDataset) => void;
+  onApplyModeChange: (mode: ApplyMode) => void;
+  onTargetDatasetChange: (dataset: TargetDataset) => void;
 }) {
+  const handleTargetDatasetSelect = (dataset: TargetDataset) => {
+    if (isProcessing) return;
+    onTargetDatasetChange(dataset);
+    onApplyRegistrationToBOM(dataset);
+  };
+
   return (
-    <div className="dictionary-table-actions">
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={onExtractFromBOM}
-        disabled={isProcessing}
-        data-tooltip="現在のBOMから部品型番と登録名を抽出します"
-      >
-        📋 BOMから抽出
-      </button>
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={onAddRegistration}
-        disabled={isProcessing}
-        data-tooltip="新しい登録名エントリを追加します"
-      >
-        ➕ 行を追加
-      </button>
-      <button
-        type="button"
-        className="ghost-button"
-        onClick={onImportCSV}
-        disabled={isProcessing}
-        data-tooltip="CSVファイルから登録名リストをインポートします"
-      >
-        📁 CSVインポート
-      </button>
-      <button
-        type="button"
-        className="ghost-button"
-        onClick={onExportCSV}
-        disabled={isProcessing}
-        data-tooltip="登録名リストをCSV形式でエクスポートします"
-      >
-        💾 CSVエクスポート
-      </button>
-      <button
-        type="button"
-        className="primary-button"
-        onClick={onApplyRegistrationToBOM}
-        disabled={isProcessing}
-        data-tooltip="登録名リストをBOMデータに適用します"
-      >
-        ✅ BOMに適用
-      </button>
-    </div>
+    <>
+      <div className="dictionary-table-actions">
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={onExtractFromBOM}
+          disabled={isProcessing}
+          data-tooltip="現在のBOMから部品型番と登録名を抽出します"
+        >
+          📋 BOMから抽出
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={onAddRegistration}
+          disabled={isProcessing}
+          data-tooltip="新しい登録名エントリを追加します"
+        >
+          ➕ 行を追加
+        </button>
+        <button
+          type="button"
+          className="danger-button"
+          onClick={onClearAll}
+          disabled={isProcessing}
+          data-tooltip="すべての登録名エントリを削除します"
+        >
+          🗑️ 全削除
+        </button>
+        <button
+          type="button"
+          className="ghost-button"
+          onClick={onImportCSV}
+          disabled={isProcessing}
+          data-tooltip="CSVファイルから登録名リストをインポートします"
+        >
+          📁 CSVインポート
+        </button>
+        <button
+          type="button"
+          className="ghost-button"
+          onClick={onExportCSV}
+          disabled={isProcessing}
+          data-tooltip="登録名リストをCSV形式でエクスポートします"
+        >
+          💾 CSVエクスポート
+        </button>
+      </div>
+      <div className="dictionary-apply-section">
+        <div className="apply-config-group">
+          <div className="config-section compact">
+            <div className="config-label">
+              <span className="label-icon">⚙️</span>
+              <span className="label-text">適用モード</span>
+            </div>
+            <div className="apply-mode-selector">
+              <label className={applyMode === 'replace' ? 'active' : ''}>
+                <input
+                  type="radio"
+                  name="applyMode"
+                  value="replace"
+                  checked={applyMode === 'replace'}
+                  onChange={() => onApplyModeChange('replace')}
+                  disabled={isProcessing}
+                />
+                <span className="radio-label">
+                  <span className="radio-icon">🔄</span>
+                  <span className="radio-text">置き換え</span>
+                </span>
+              </label>
+              <label className={applyMode === 'append' ? 'active' : ''}>
+                <input
+                  type="radio"
+                  name="applyMode"
+                  value="append"
+                  checked={applyMode === 'append'}
+                  onChange={() => onApplyModeChange('append')}
+                  disabled={isProcessing}
+                />
+                <span className="radio-label">
+                  <span className="radio-icon">➕</span>
+                  <span className="radio-text">行追加</span>
+                </span>
+              </label>
+            </div>
+          </div>
+          <div className="config-section compact">
+            <div className="config-label">
+              <span className="label-icon">🎯</span>
+              <span className="label-text">適用先BOM</span>
+            </div>
+            <div className="target-dataset-selector">
+              <button
+                type="button"
+                className="secondary-button target-apply-button"
+                disabled={isProcessing}
+                onClick={() => handleTargetDatasetSelect('a')}
+              >
+                BOM Aに適用
+              </button>
+              <button
+                type="button"
+                className="primary-button target-apply-button"
+                disabled={isProcessing}
+                onClick={() => handleTargetDatasetSelect('b')}
+              >
+                BOM Bに適用
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -100,6 +191,8 @@ export function DictionaryTab({
   activeTab,
   registrationEntries,
   exceptionEntries,
+  applyMode,
+  targetDataset,
   onTabChange,
   onLoadDictionary,
   onSaveDictionary,
@@ -109,17 +202,26 @@ export function DictionaryTab({
   onAddRegistration,
   onRegistrationFieldChange,
   onRemoveRegistration,
+  onClearAllRegistrations,
   onImportRegistrationCSV,
   onExportRegistrationCSV,
   onApplyRegistrationToBOM,
   onAddException,
   onExceptionFieldChange,
   onRemoveException,
+  onClearAllExceptions,
   onImportExceptionCSV,
   onExportExceptionCSV,
   onApplyExceptionToBOM,
+  onApplyModeChange,
+  onTargetDatasetChange,
   isProcessing = false
 }: DictionaryTabProps) {
+  const handleExceptionDatasetSelect = (dataset: TargetDataset) => {
+    if (isProcessing) return;
+    onTargetDatasetChange(dataset);
+    onApplyExceptionToBOM(dataset);
+  };
   const hasRegistrations = registrationEntries.length > 0;
   const hasExceptions = exceptionEntries.length > 0;
 
@@ -302,11 +404,16 @@ export function DictionaryTab({
           </div>
           <RegistrationActions
             isProcessing={isProcessing}
+            applyMode={applyMode}
+            targetDataset={targetDataset}
             onExtractFromBOM={onExtractFromBOM}
             onAddRegistration={onAddRegistration}
+            onClearAll={onClearAllRegistrations}
             onImportCSV={onImportRegistrationCSV}
             onExportCSV={onExportRegistrationCSV}
             onApplyRegistrationToBOM={onApplyRegistrationToBOM}
+            onApplyModeChange={onApplyModeChange}
+            onTargetDatasetChange={onTargetDatasetChange}
           />
           <div className="dictionary-table-wrapper">
             <table className="dictionary-table">
@@ -340,6 +447,15 @@ export function DictionaryTab({
             </button>
             <button
               type="button"
+              className="danger-button"
+              onClick={onClearAllExceptions}
+              disabled={isProcessing}
+              data-tooltip="すべての例外エントリを削除します"
+            >
+              🗑️ 全削除
+            </button>
+            <button
+              type="button"
               className="ghost-button"
               onClick={onImportExceptionCSV}
               disabled={isProcessing}
@@ -356,15 +472,70 @@ export function DictionaryTab({
             >
               💾 CSVエクスポート
             </button>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={onApplyExceptionToBOM}
-              disabled={isProcessing}
-              data-tooltip="例外リストをBOMデータに適用します"
-            >
-              ✅ BOMに適用
-            </button>
+          </div>
+          <div className="dictionary-apply-section">
+            <div className="apply-config-group">
+              <div className="config-section compact">
+                <div className="config-label">
+                  <span className="label-icon">⚙️</span>
+                  <span className="label-text">適用モード</span>
+                </div>
+                <div className="apply-mode-selector">
+                  <label className={applyMode === 'replace' ? 'active' : ''}>
+                    <input
+                      type="radio"
+                      name="applyModeException"
+                      value="replace"
+                      checked={applyMode === 'replace'}
+                      onChange={() => onApplyModeChange('replace')}
+                      disabled={isProcessing}
+                    />
+                    <span className="radio-label">
+                      <span className="radio-icon">🔄</span>
+                      <span className="radio-text">置き換え</span>
+                    </span>
+                  </label>
+                  <label className={applyMode === 'append' ? 'active' : ''}>
+                    <input
+                      type="radio"
+                      name="applyModeException"
+                      value="append"
+                      checked={applyMode === 'append'}
+                      onChange={() => onApplyModeChange('append')}
+                      disabled={isProcessing}
+                    />
+                    <span className="radio-label">
+                      <span className="radio-icon">➕</span>
+                      <span className="radio-text">行追加</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+              <div className="config-section compact">
+                <div className="config-label">
+                  <span className="label-icon">🎯</span>
+                  <span className="label-text">適用先BOM</span>
+                </div>
+                <div className="target-dataset-selector">
+                  <button
+                    type="button"
+                    className="secondary-button target-apply-button"
+                    disabled={isProcessing}
+                    onClick={() => handleExceptionDatasetSelect('a')}
+                  >
+                    BOM Aに適用
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-button target-apply-button"
+                    disabled={isProcessing}
+                    onClick={() => handleExceptionDatasetSelect('b')}
+                  >
+                    BOM Bに適用
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           <div className="dictionary-table-wrapper">
             <table className="dictionary-table">

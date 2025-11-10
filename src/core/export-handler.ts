@@ -397,3 +397,120 @@ export async function exportToMSF(source: ExportSource, context: ExportContext):
   }
 }
 
+
+/**
+ * PWS形式でエクスポート
+ */
+export async function exportToPWS(source: ExportSource, context: ExportContext): Promise<void> {
+  const data = getParseResultForSource(source, context, 'netlist');
+  if (!data || data.rows.length === 0) {
+    alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
+    return;
+  }
+
+  const filePath = await save({
+    filters: [{ name: 'PWS Netlist', extensions: ['pws'] }],
+    defaultPath: `${getExportFilename(source)}.pws`
+  });
+
+  if (!filePath) return;
+
+  try {
+    setProcessing(true, `${SOURCE_LABEL[source]}をPWS出力中...`);
+
+    const content = await invoke<string>('export_bom_file', {
+      parse: data,
+      format: 'PWS',
+      diffs: null,
+      includeComments: false
+    });
+
+    await saveSessionToFile(filePath, content);
+
+    logActivity(`${SOURCE_LABEL[source]}をPWSに出力しました。`);
+    alert(`PWS出力が完了しました。\n${data.rows.length}個の部品を出力しました。`);
+  } catch (error: unknown) {
+    console.error('PWS export failed', error);
+    alert(`PWS出力に失敗しました: ${error}`);
+  } finally {
+    setProcessing(false);
+  }
+}
+
+/**
+ * BD形式でエクスポート
+ */
+export async function exportToBD(source: ExportSource, context: ExportContext): Promise<void> {
+  const data = getParseResultForSource(source, context, 'netlist');
+  if (!data || data.rows.length === 0) {
+    alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
+    return;
+  }
+
+  const filePath = await save({
+    filters: [{ name: 'BD Netlist', extensions: ['bd'] }],
+    defaultPath: `${getExportFilename(source)}.bd`
+  });
+
+  if (!filePath) return;
+
+  try {
+    setProcessing(true, `${SOURCE_LABEL[source]}をBD出力中...`);
+
+    const content = await invoke<string>('export_bom_file', {
+      parse: data,
+      format: 'BD',
+      diffs: null,
+      includeComments: false
+    });
+
+    await saveSessionToFile(filePath, content);
+
+    logActivity(`${SOURCE_LABEL[source]}をBDに出力しました。`);
+    alert(`BD出力が完了しました。\n${data.rows.length}個の部品を出力しました。`);
+  } catch (error: unknown) {
+    console.error('BD export failed', error);
+    alert(`BD出力に失敗しました: ${error}`);
+  } finally {
+    setProcessing(false);
+  }
+}
+
+/**
+ * PADSレポート形式でエクスポート
+ */
+export async function exportToPADSReport(source: ExportSource, context: ExportContext): Promise<void> {
+  const data = getParseResultForSource(source, context, 'netlist');
+  if (!data || data.rows.length === 0) {
+    alert(`${SOURCE_LABEL[source]}からエクスポートできるデータがありません。`);
+    return;
+  }
+
+  const filePath = await save({
+    filters: [{ name: 'PADS Report', extensions: ['txt', 'rpt'] }],
+    defaultPath: `${getExportFilename(source)}_report.txt`
+  });
+
+  if (!filePath) return;
+
+  try {
+    setProcessing(true, `${SOURCE_LABEL[source]}をPADSレポート出力中...`);
+
+    const content = await invoke<string>('export_bom_file', {
+      parse: data,
+      format: 'PADSREPORT',
+      diffs: null,
+      includeComments: false
+    });
+
+    await saveSessionToFile(filePath, content);
+
+    logActivity(`${SOURCE_LABEL[source]}をPADSレポートに出力しました。`);
+    alert(`PADSレポート出力が完了しました。\n${data.rows.length}個の部品を出力しました。`);
+  } catch (error: unknown) {
+    console.error('PADS Report export failed', error);
+    alert(`PADSレポート出力に失敗しました: ${error}`);
+  } finally {
+    setProcessing(false);
+  }
+}

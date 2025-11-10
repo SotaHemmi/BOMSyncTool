@@ -1,0 +1,11 @@
+部品表１レポート
+参照名       型番           登録名
+-----------------------------------------
+C10          XXX            0603B104K500CT
+C12          YYY            0603B104K500CT
+IC8          ZZZ            74VHC08FT(BJ)
+IC9          AAA            74VHC08FT(BJ)
+IC10         BBB            74VHC08FT(BJ)
+R1           CCC            RESI-0603-1K
+R2           DDD            RESI-0603-1K
+R3           EEE            RESI-0603-1K

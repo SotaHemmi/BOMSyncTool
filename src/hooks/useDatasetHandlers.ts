@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import type { ColumnRole, DatasetKey } from '../types';
 import type { UseBOMDataResult } from './useBOMData';
 import type { PreprocessOptions } from '../core/preprocessing';
-import { exportToCCF, exportToECO, exportToMSF, type ExportContext } from '../core/export-handler';
+import { exportToCCF, exportToECO, exportToMSF, exportToPWS, exportToBD, exportToPADSReport, type ExportContext } from '../core/export-handler';
 
 interface UseDatasetHandlersParams {
   dataset: DatasetKey;
@@ -35,24 +35,29 @@ export function useDatasetHandlers({
   setIsProcessing
 }: UseDatasetHandlersParams) {
   const loadFile = useCallback(
-    (path: string, displayName?: string) => handleLoadFile(dataset, bom.loadFile, path, displayName),
-    [bom.loadFile, dataset, handleLoadFile]
+    async (path: string, displayName?: string) => {
+      await handleLoadFile(dataset, bom.loadFile, path, displayName);
+      onSave();
+    },
+    [bom.loadFile, dataset, handleLoadFile, onSave]
   );
 
   const setColumnRole = useCallback(
     (role: ColumnRole, columnId: string | null) => {
       if (!columnId) return;
       bom.setColumnRoleById(columnId, role);
-      onSave();
+      // 列の役割変更時は自動保存しない（ユーザーが明示的に保存するまで待つ）
+      // onSave();
     },
-    [bom.setColumnRoleById, onSave]
+    [bom.setColumnRoleById]
   );
 
   const applyDefaultPreprocess = useCallback(async () => {
     setIsProcessing(true);
     try {
       await bom.applyPreprocess(defaultPreprocessOptions);
-      onSave();
+      // 前処理適用時は自動保存しない（ユーザーが明示的に保存するまで待つ）
+      // onSave();
       alert('デフォルト前処理を適用しました。');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -60,7 +65,7 @@ export function useDatasetHandlers({
     } finally {
       setIsProcessing(false);
     }
-  }, [bom.applyPreprocess, defaultPreprocessOptions, onSave, setIsProcessing]);
+  }, [bom.applyPreprocess, defaultPreprocessOptions, setIsProcessing]);
 
   const openEdit = useCallback(() => handleOpenEdit(dataset), [dataset, handleOpenEdit]);
 
@@ -81,13 +86,31 @@ export function useDatasetHandlers({
     [exportContext, exportSource, runExport]
   );
 
+  const exportPWS = useCallback(
+    () => runExport(() => exportToPWS(exportSource, exportContext)),
+    [exportContext, exportSource, runExport]
+  );
+
+  const exportBD = useCallback(
+    () => runExport(() => exportToBD(exportSource, exportContext)),
+    [exportContext, exportSource, runExport]
+  );
+
+  const exportPADSReport = useCallback(
+    () => runExport(() => exportToPADSReport(exportSource, exportContext)),
+    [exportContext, exportSource, runExport]
+  );
+
   const exportHandlers = useMemo(
     () => ({
       eco: exportECO,
       ccf: exportCCF,
-      msf: exportMSF
+      msf: exportMSF,
+      pws: exportPWS,
+      bd: exportBD,
+      padsReport: exportPADSReport
     }),
-    [exportCCF, exportECO, exportMSF]
+    [exportCCF, exportECO, exportMSF, exportPWS, exportBD, exportPADSReport]
   );
 
   const handleError = useCallback((error: unknown) => {

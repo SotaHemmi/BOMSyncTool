@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { DiffRow, ParseResult } from '../types';
 import type { UseBOMDataResult } from './useBOMData';
 import type { UseProjectsResult } from './useProjects';
-import { datasetState } from '../state/app-state';
 
 interface UseProjectSyncParams {
   projects: UseProjectsResult;
@@ -34,37 +33,6 @@ export function useProjectSync({
     savedAt: null
   });
 
-  const syncDatasetsFromState = useCallback(() => {
-    const stateA = datasetState.a;
-    if (stateA.parseResult) {
-      bomA.updateFromParseResult(stateA.parseResult, stateA.fileName);
-    } else {
-      bomA.reset();
-    }
-
-    const stateB = datasetState.b;
-    if (stateB.parseResult) {
-      bomB.updateFromParseResult(stateB.parseResult, stateB.fileName);
-    } else {
-      bomB.reset();
-    }
-  }, [bomA, bomB]);
-
-  const syncDatasetsFromStateRef = useRef(syncDatasetsFromState);
-
-  useEffect(() => {
-    syncDatasetsFromStateRef.current = syncDatasetsFromState;
-  }, [syncDatasetsFromState]);
-
-  useEffect(() => {
-    const handleDataLoaded = () => {
-      syncDatasetsFromStateRef.current();
-    };
-    window.addEventListener('bomsync:dataLoaded', handleDataLoaded);
-    return () => {
-      window.removeEventListener('bomsync:dataLoaded', handleDataLoaded);
-    };
-  }, []);
 
   useEffect(() => {
     if (!activeProject) {
@@ -94,13 +62,15 @@ export function useProjectSync({
 
     // 異なるプロジェクトに切り替わった場合のみリセット
     if (data.bomA) {
-      bomA.updateFromParseResult(data.bomA, name);
+      const fileNameA = data.fileNameA ?? bomA.fileName ?? name;
+      bomA.updateFromParseResult(data.bomA, fileNameA ?? null);
     } else if (bomA.parseResult) {
       bomA.reset();
     }
 
     if (data.bomB) {
-      bomB.updateFromParseResult(data.bomB, name);
+      const fileNameB = data.fileNameB ?? bomB.fileName ?? name;
+      bomB.updateFromParseResult(data.bomB, fileNameB ?? null);
     } else if (bomB.parseResult) {
       bomB.reset();
     }
@@ -112,7 +82,6 @@ export function useProjectSync({
   }, [activeProject, bomA, bomB, resetResults, setCurrentDiffs, setMergedBom]);
 
   return {
-    activeProject,
-    syncDatasetsFromState
+    activeProject
   };
 }

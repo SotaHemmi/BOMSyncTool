@@ -52,7 +52,8 @@ export function useComparison({
         await loader(path, displayName);
         resetResults();
         setResultsFilter('diff');
-        onSave();
+        // ファイル読み込み後は自動保存しない（ユーザーが明示的に保存するまで待つ）
+        // onSave();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         alert(`ファイルの読み込みに失敗しました: ${message}`);
@@ -60,7 +61,7 @@ export function useComparison({
         setLoadingDatasets(prev => ({ ...prev, [dataset]: false }));
       }
     },
-    [onSave, resetResults]
+    [resetResults]
   );
 
   const handleCompare = useCallback(async () => {

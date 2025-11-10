@@ -7,7 +7,7 @@
 import type { DatasetKey, ProjectSettings } from '../types';
 import { datasetState } from '../state/app-state';
 import { setProcessing, logActivity, datasetLabel } from '../utils';
-import { updatePreviewCard, updateDropzone } from './dataset-view';
+import { updatePreviewCard } from './dataset-view';
 import { applyPreprocessing } from '../core/preprocessing';
 import { loadProjectSettings } from '../utils/storage';
 
@@ -80,8 +80,7 @@ async function applyDefaultPreprocess(dataset: DatasetKey): Promise<void> {
     // 状態を更新
     state.parseResult = processed;
 
-    // UIを更新
-    updateDropzone(dataset);
+    // UIを更新（React hooks が自動的に再レンダリング）
     updatePreviewCard(dataset);
 
     logActivity(`${datasetLabel(dataset)}にデフォルト前処理を適用しました。`);

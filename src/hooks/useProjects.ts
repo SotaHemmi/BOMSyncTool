@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ColumnRole, ProjectPayload, ProjectRecord } from '../types';
+import type { ProjectPayload, ProjectRecord } from '../types';
 import {
   loadActiveProjectId,
   saveActiveProjectId,
@@ -15,94 +15,39 @@ import {
 } from '../utils';
 import {
   createEmptyProjectSnapshot,
-  createProjectSnapshot,
   generateDefaultProjectName
 } from '../core/project-manager';
-import {
-  datasetState,
-  resetAllState
-} from '../state/app-state';
+import type { UseBOMDataResult } from './useBOMData';
 import { ProjectStorage, PROJECT_STORAGE_KEY } from '../core/storage';
 
 const ACTIVE_PROJECT_KEY = 'bomsync_active_project';
 const FAVORITE_PROJECTS_KEY = 'bomsync_favorite_projects';
 
-type ColumnRolesMap = Record<string, ColumnRole>;
-
-function normalizeColumnRoles(storedRoles?: ColumnRolesMap): ColumnRolesMap {
-  if (!storedRoles) return {};
-  const allowed = new Set([
-    'ref',
-    'part_no',
-    'manufacturer',
-    'value',
-    'package',
-    'quantity',
-    'remarks',
-    'ignore'
-  ]);
-  return Object.entries(storedRoles).reduce<ColumnRolesMap>((acc, [columnId, role]) => {
-    if (allowed.has(role)) {
-      acc[columnId] = role;
-    }
-    return acc;
-  }, {});
+// Tauri環境チェック用ヘルパー
+function isTauriEnvironment(): boolean {
+  return typeof window !== 'undefined' &&
+    Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
 }
 
-function cloneParseResult(payload: ProjectPayload['bomA']): ProjectPayload['bomA'] {
-  if (!payload) return null;
-  const columnRoles = payload.column_roles ?? {};
-  const columnOrder = payload.column_order ?? [];
-  const errors = payload.errors ?? [];
-  const headers = payload.headers ?? [];
-  const columns = payload.columns ?? [];
-  const rowNumbers = payload.row_numbers ?? [];
-  return {
-    ...payload,
-    rows: payload.rows.map(row => [...row]),
-    column_roles: Object.fromEntries(
-      Object.entries(columnRoles).map(([role, mappedColumns]) => [role, [...mappedColumns]])
-    ),
-    column_order: [...columnOrder],
-    errors: [...errors],
-    headers: [...headers],
-    columns: columns.map(column => ({ ...column })),
-    row_numbers: [...rowNumbers],
-    structured_errors: payload.structured_errors
-      ? payload.structured_errors.map(error => ({ ...error }))
-      : undefined
-  };
-}
 
-function applyDatasetPayload(
-  dataset: 'a' | 'b',
-  parseResult: ProjectPayload['bomA'],
-  columnRoles?: ColumnRolesMap,
-  fileName?: string | null,
-  savedAt?: string
-) {
-  const target = datasetState[dataset];
-  if (!parseResult) {
-    target.parseResult = null;
-    target.fileName = null;
-    target.filePath = null;
-    target.lastUpdated = null;
-    target.columnRoles = {};
-    return;
-  }
-
-  target.parseResult = cloneParseResult(parseResult);
-  target.fileName = fileName ?? null;
-  target.filePath = null;
-  target.lastUpdated = savedAt ?? new Date().toISOString();
-  target.columnRoles = normalizeColumnRoles(columnRoles);
-}
-
-function applyProjectPayload(record: ProjectRecord): void {
-  resetAllState();
+function applyProjectPayload(
+  record: ProjectRecord,
+  bomA: UseBOMDataResult,
+  bomB: UseBOMDataResult
+): void {
   const { data } = record;
-  applyDatasetPayload('a', data.bomA, data.columnRolesA, record.name, data.savedAt);
-  applyDatasetPayload('b', data.bomB, data.columnRolesB, record.name, data.savedAt);
+  
+  if (data.bomA) {
+    bomA.updateFromParseResult(data.bomA, data.fileNameA ?? null);
+  } else {
+    bomA.reset();
+  }
+  
+  if (data.bomB) {
+    bomB.updateFromParseResult(data.bomB, data.fileNameB ?? null);
+  } else {
+    bomB.reset();
+  }
 }
 
 export interface UseProjectsResult {
@@ -119,7 +64,7 @@ export interface UseProjectsResult {
   toggleFavorite: (projectId: string) => void;
 }
 
-export function useProjects(): UseProjectsResult {
+export function useProjects(bomA?: UseBOMDataResult, bomB?: UseBOMDataResult): UseProjectsResult {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
   const [favoriteProjects, setFavoriteProjectsState] = useState<Set<string>>(new Set());
@@ -137,11 +82,11 @@ export function useProjects(): UseProjectsResult {
     (record: ProjectRecord) => {
       setFavoriteArchiveState(prev => {
         const next = { ...prev, [record.id]: record };
-        saveFavoriteProjectArchive(next);
+        void saveFavoriteProjectArchive(next);
         return next;
       });
     },
-    [saveFavoriteProjectArchive]
+    []
   );
 
   const removeFavoriteArchiveEntry = useCallback(
@@ -151,11 +96,11 @@ export function useProjects(): UseProjectsResult {
           return prev;
         }
         const { [projectId]: _removed, ...rest } = prev;
-        saveFavoriteProjectArchive(rest);
+        void saveFavoriteProjectArchive(rest);
         return rest;
       });
     },
-    [saveFavoriteProjectArchive]
+    []
   );
 
   const restoreFavoriteProject = useCallback(
@@ -190,32 +135,40 @@ export function useProjects(): UseProjectsResult {
   }, []);
 
   useEffect(() => {
-    const storedProjects = ProjectStorage.getAll();
-    const favorites = getFavoriteProjects();
-    const archive = loadFavoriteProjectArchive();
-    const storedActiveId = loadActiveProjectId();
-
-    setProjects(storedProjects);
-    setFavoriteProjectsState(favorites);
-    setFavoriteArchiveState(archive);
-
-    if (storedActiveId) {
-      const record = storedProjects.find(project => project.id === storedActiveId);
-      if (record) {
-        applyProjectPayload(record);
-        setActiveProject(storedActiveId);
-        return;
+    void (async () => {
+      // 初期化が完了するまで待つ
+      if (!ProjectStorage.isInitialized()) {
+        await ProjectStorage.initialize();
       }
-    }
 
-    if (storedProjects.length > 0) {
-      const first = storedProjects[0];
-      applyProjectPayload(first);
-      setActiveProject(first.id);
-    } else {
-      resetAllState();
-      setActiveProject(null);
-    }
+      const storedProjects = ProjectStorage.getAll();
+      const favorites = getFavoriteProjects();
+      const archive = loadFavoriteProjectArchive();
+      const storedActiveId = loadActiveProjectId();
+
+      setProjects(storedProjects);
+      setFavoriteProjectsState(favorites);
+      setFavoriteArchiveState(archive);
+
+      if (storedActiveId && bomA && bomB) {
+        const record = storedProjects.find(project => project.id === storedActiveId);
+        if (record) {
+          applyProjectPayload(record, bomA, bomB);
+          setActiveProject(storedActiveId);
+          return;
+        }
+      }
+
+      if (storedProjects.length > 0 && bomA && bomB) {
+        const first = storedProjects[0];
+        applyProjectPayload(first, bomA, bomB);
+        setActiveProject(first.id);
+      } else {
+        if (bomA) bomA.reset();
+        if (bomB) bomB.reset();
+        setActiveProject(null);
+      }
+    })();
   }, [setActiveProject]);
 
   useEffect(() => {
@@ -228,67 +181,80 @@ export function useProjects(): UseProjectsResult {
       const isArchiveEvent = event.key === FAVORITE_PROJECTS_ARCHIVE_KEY || event.key === null;
 
       if (isProjectEvent) {
-        const updatedProjects = ProjectStorage.getAll();
-        const projectsChanged = !deepEqual(updatedProjects, projects);
-        const nextProjects = projectsChanged ? updatedProjects : projects;
+        void (async () => {
+          await ProjectStorage.syncFromDisk();
+          const updatedProjects = ProjectStorage.getAll();
+          const projectsChanged = !deepEqual(updatedProjects, projects);
+          const nextProjects = projectsChanged ? updatedProjects : projects;
 
-        if (projectsChanged) {
-          setProjects(updatedProjects);
-        }
-
-        const projectMap = new Map(nextProjects.map(project => [project.id, project]));
-
-        const trimmedFavorites = new Set<string>();
-        favoriteProjects.forEach(id => {
-          if (projectMap.has(id)) {
-            trimmedFavorites.add(id);
+          if (projectsChanged) {
+            setProjects(updatedProjects);
           }
-        });
 
-        if (!deepEqual(trimmedFavorites, favoriteProjects)) {
-          setFavoriteProjectsState(trimmedFavorites);
-          saveFavoriteProjects(trimmedFavorites);
-        }
+          const projectMap = new Map(nextProjects.map(project => [project.id, project]));
 
-        setFavoriteArchiveState(prev => {
-          const nextArchive: Record<string, ProjectRecord> = {};
-          trimmedFavorites.forEach(id => {
-            const record = projectMap.get(id);
-            if (record) {
-              nextArchive[id] = record;
+          const trimmedFavorites = new Set<string>();
+          favoriteProjects.forEach(id => {
+            if (projectMap.has(id)) {
+              trimmedFavorites.add(id);
             }
           });
 
-          if (deepEqual(prev, nextArchive)) {
-            return prev;
+          if (!deepEqual(trimmedFavorites, favoriteProjects)) {
+            setFavoriteProjectsState(trimmedFavorites);
+            saveFavoriteProjects(trimmedFavorites);
           }
 
-          saveFavoriteProjectArchive(nextArchive);
-          return nextArchive;
-        });
+          setFavoriteArchiveState(prev => {
+            if (isTauriEnvironment()) {
+              const archive = loadFavoriteProjectArchive();
+              return deepEqual(prev, archive) ? prev : archive;
+            }
 
-        if (nextProjects.length === 0) {
-          resetAllState();
-          setActiveProject(null);
-          return;
-        }
+            const nextArchive: Record<string, ProjectRecord> = {};
+            trimmedFavorites.forEach(id => {
+              const record = projectMap.get(id);
+              if (record) {
+                nextArchive[id] = record;
+              }
+            });
 
-        if (!activeProjectId) {
-          const first = nextProjects[0];
-          applyProjectPayload(first);
-          setActiveProject(first.id);
-          return;
-        }
+            if (deepEqual(prev, nextArchive)) {
+              return prev;
+            }
 
-        const activeRecord = projectMap.get(activeProjectId);
-        if (activeRecord) {
-          applyProjectPayload(activeRecord);
-          return;
-        }
+            void saveFavoriteProjectArchive(nextArchive);
+            return nextArchive;
+          });
 
-        const fallback = nextProjects[0];
-        applyProjectPayload(fallback);
-        setActiveProject(fallback.id);
+          if (nextProjects.length === 0) {
+            if (bomA) bomA.reset();
+            if (bomB) bomB.reset();
+            setActiveProject(null);
+            return;
+          }
+
+          if (!activeProjectId && bomA && bomB) {
+            const first = nextProjects[0];
+            applyProjectPayload(first, bomA, bomB);
+            setActiveProject(first.id);
+            return;
+          }
+
+          if (activeProjectId) {
+            const activeRecord = projectMap.get(activeProjectId);
+            if (activeRecord && bomA && bomB) {
+              applyProjectPayload(activeRecord, bomA, bomB);
+              return;
+            }
+          }
+
+          if (bomA && bomB && nextProjects.length > 0) {
+            const fallback = nextProjects[0];
+            applyProjectPayload(fallback, bomA, bomB);
+            setActiveProject(fallback.id);
+          }
+        })();
         return;
       }
 
@@ -298,18 +264,49 @@ export function useProjects(): UseProjectsResult {
           return;
         }
 
-        if (nextActive) {
-          const storedProjects = ProjectStorage.getAll();
-          if (!deepEqual(storedProjects, projects)) {
-            setProjects(storedProjects);
-          }
-          const record = storedProjects.find(project => project.id === nextActive);
-          if (record) {
-            applyProjectPayload(record);
-            setActiveProject(nextActive);
-          }
+        if (nextActive && bomA && bomB) {
+          void (async () => {
+            await ProjectStorage.syncFromDisk();
+            const storedProjects = ProjectStorage.getAll();
+            if (!deepEqual(storedProjects, projects)) {
+              setProjects(storedProjects);
+            }
+            const record = storedProjects.find(project => project.id === nextActive);
+            if (record) {
+              applyProjectPayload(record, bomA, bomB);
+              setActiveProject(nextActive);
+            }
+          })();
         } else {
-          resetAllState();
+          if (bomA) bomA.reset();
+          if (bomB) bomB.reset();
+          setActiveProject(null);
+        }
+        return;
+      }
+
+      if (event.key === ACTIVE_PROJECT_KEY) {
+        const nextActive = loadActiveProjectId();
+        if (nextActive === activeProjectId) {
+          return;
+        }
+
+        if (nextActive && bomA && bomB) {
+          void (async () => {
+            await ProjectStorage.syncFromDisk();
+            const storedProjects = ProjectStorage.getAll();
+            if (!deepEqual(storedProjects, projects)) {
+              setProjects(storedProjects);
+            }
+            const record = storedProjects.find(project => project.id === nextActive);
+            if (record) {
+              applyProjectPayload(record, bomA, bomB);
+              setActiveProject(nextActive);
+            }
+          })();
+        } else {
+          if (bomA) bomA.reset();
+          if (bomB) bomB.reset();
           setActiveProject(null);
         }
         return;
@@ -333,7 +330,7 @@ export function useProjects(): UseProjectsResult {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [activeProjectId, favoriteProjects, projects, setActiveProject]);
+  }, [activeProjectId, bomA, bomB, favoriteProjects, projects, setActiveProject]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -352,7 +349,7 @@ export function useProjects(): UseProjectsResult {
       const now = new Date().toISOString();
 
       // デフォルト名を生成（日付形式）
-      const defaultName = name || generateDefaultProjectName();
+      const defaultName = name || generateDefaultProjectName(false);
 
       const newProject: ProjectRecord = {
         id: `project-${Date.now()}`,
@@ -368,16 +365,21 @@ export function useProjects(): UseProjectsResult {
         return updated;
       });
 
-      resetAllState();
+      if (bomA) bomA.reset();
+      if (bomB) bomB.reset();
       setActiveProject(newProject.id);
       logActivity('新しいタブを作成しました。');
       return newProject;
     },
-    [debouncedSaveProjects, projects, setActiveProject]
+    [bomA, bomB, debouncedSaveProjects, projects, setActiveProject]
   );
 
   const loadProject = useCallback(
     (projectId: string) => {
+      if (!bomA || !bomB) {
+        return null;
+      }
+      
       let record = projects.find(project => project.id === projectId) ?? null;
       let restored = false;
 
@@ -389,7 +391,7 @@ export function useProjects(): UseProjectsResult {
         restored = true;
       }
 
-      applyProjectPayload(record);
+      applyProjectPayload(record, bomA, bomB);
       setActiveProject(projectId);
       const displayName = record.name?.trim() || '未命名タブ';
       if (restored) {
@@ -399,13 +401,34 @@ export function useProjects(): UseProjectsResult {
       }
       return record;
     },
-    [projects, restoreFavoriteProject, setActiveProject]
+    [bomA, bomB, projects, restoreFavoriteProject, setActiveProject]
   );
 
   const saveProject = useCallback(
     (name?: string) => {
-      const snapshot = createProjectSnapshot();
-      const now = snapshot.savedAt;
+      if (!bomA || !bomB) {
+        return null;
+      }
+
+      const hasData = bomA.parseResult !== null || bomB.parseResult !== null;
+      if (!hasData) {
+        // エラーメッセージを表示せず、静かに失敗する（自動保存の場合）
+        // alert('保存できる内容がありません。');
+        return null;
+      }
+
+      const now = new Date().toISOString();
+      const snapshot: ProjectPayload = {
+        version: 1,
+        savedAt: now,
+        bomA: bomA.parseResult,
+        bomB: bomB.parseResult,
+        fileNameA: bomA.fileName,
+        fileNameB: bomB.fileName,
+        columnRolesA: { ...bomA.columnRoles },
+        columnRolesB: { ...bomB.columnRoles }
+      };
+
       const updated = [...projects];
       const index = activeProjectId ? updated.findIndex(project => project.id === activeProjectId) : -1;
       let record: ProjectRecord;
@@ -444,18 +467,9 @@ export function useProjects(): UseProjectsResult {
         upsertFavoriteArchive(record);
       }
 
-      if (record.id === activeProjectId) {
-        if (datasetState.a.parseResult) {
-          datasetState.a.fileName = record.name ?? datasetState.a.fileName;
-        }
-        if (datasetState.b.parseResult) {
-          datasetState.b.fileName = record.name ?? datasetState.b.fileName;
-        }
-      }
-
       return record;
     },
-    [activeProjectId, debouncedSaveProjects, favoriteProjects, projects, setActiveProject, upsertFavoriteArchive]
+    [activeProjectId, bomA, bomB, debouncedSaveProjects, favoriteProjects, projects, setActiveProject, upsertFavoriteArchive]
   );
 
   const deleteProject = useCallback(
@@ -467,29 +481,32 @@ export function useProjects(): UseProjectsResult {
         upsertFavoriteArchive(target);
       }
 
+      let newProjectId: string | null = null;
+      
       setProjects(prev => {
         const updated = prev.filter(project => project.id !== projectId);
 
         if (projectId === activeProjectId) {
-          if (updated.length > 0) {
+          if (updated.length > 0 && bomA && bomB) {
             const nextProject = updated[0];
-            applyProjectPayload(nextProject);
-            setActiveProject(nextProject.id);
+            applyProjectPayload(nextProject, bomA, bomB);
+            newProjectId = nextProject.id;
             debouncedSaveProjects(updated);
           } else {
             // 最後のタブが削除された場合、新しいタブを自動作成
-            resetAllState();
+            if (bomA) bomA.reset();
+            if (bomB) bomB.reset();
 
             const now = new Date().toISOString();
             const newProject: ProjectRecord = {
               id: `project-${Date.now()}`,
-              name: generateDefaultProjectName(),
+              name: generateDefaultProjectName(false),
               createdAt: now,
               updatedAt: now,
               data: createEmptyProjectSnapshot()
             };
 
-            setActiveProject(newProject.id);
+            newProjectId = newProject.id;
             debouncedSaveProjects([newProject]);
             logActivity('新しいタブを作成しました。');
             return [newProject];
@@ -500,6 +517,11 @@ export function useProjects(): UseProjectsResult {
 
         return updated;
       });
+
+      // 状態更新を同期的に実行（setProjectsの外で実行）
+      if (newProjectId) {
+        setActiveProject(newProjectId);
+      }
 
       if (target) {
         const displayName = target.name?.trim() || '未命名タブ';
@@ -546,14 +568,7 @@ export function useProjects(): UseProjectsResult {
         return false;
       }
 
-      if (changed && projectId === activeProjectId) {
-        if (datasetState.a.parseResult) {
-          datasetState.a.fileName = normalized ?? datasetState.a.fileName;
-        }
-        if (datasetState.b.parseResult) {
-          datasetState.b.fileName = normalized ?? datasetState.b.fileName;
-        }
-      }
+      // ファイル名はBOMファイルの元の名前を保持し、プロジェクト名とは独立
 
       if (changed) {
         const displayName = normalized ?? '未命名タブ';
@@ -588,7 +603,11 @@ export function useProjects(): UseProjectsResult {
 
   const toggleFavorite = useCallback(
     (projectId: string) => {
+      const wasFavorite = favoriteProjects.has(projectId);
+      const shouldCaptureActive = !wasFavorite && projectId === activeProjectId;
+      const activeSnapshot = shouldCaptureActive ? saveProject() : null;
       let message: string | null = null;
+
       setFavoriteProjectsState(prev => {
         const next = new Set(prev);
         if (next.has(projectId)) {
@@ -598,24 +617,24 @@ export function useProjects(): UseProjectsResult {
         } else {
           next.add(projectId);
           message = 'お気に入りに追加しました';
-          const existing = projects.find(project => project.id === projectId);
+          const existing =
+            activeSnapshot ??
+            projects.find(project => project.id === projectId) ??
+            favoriteArchive[projectId] ??
+            getFavoriteProjectSnapshot(projectId);
           if (existing) {
             upsertFavoriteArchive(existing);
-          } else {
-            const archived = favoriteArchive[projectId] ?? getFavoriteProjectSnapshot(projectId);
-            if (archived) {
-              upsertFavoriteArchive(archived);
-            }
           }
         }
         saveFavoriteProjects(next);
         return next;
       });
+
       if (message) {
         logActivity(message);
       }
     },
-    [favoriteArchive, projects, removeFavoriteArchiveEntry, upsertFavoriteArchive]
+    [activeProjectId, favoriteArchive, favoriteProjects, projects, removeFavoriteArchiveEntry, saveProject, upsertFavoriteArchive]
   );
 
   return {

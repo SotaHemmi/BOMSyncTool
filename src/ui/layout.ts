@@ -68,14 +68,22 @@ function adjustDynamicLayouts() {
   }
 }
 
-// デバウンス付きリサイズハンドラー
-function handleResize() {
+function scheduleAdjustment(delay = 150) {
   if (layoutResizeTimeout) {
     clearTimeout(layoutResizeTimeout);
   }
   layoutResizeTimeout = window.setTimeout(() => {
     adjustDynamicLayouts();
-  }, 150);
+  }, delay);
+}
+
+export function requestLayoutAdjustment(delay = 120) {
+  scheduleAdjustment(delay);
+}
+
+// デバウンス付きリサイズハンドラー
+function handleResize() {
+  scheduleAdjustment();
 }
 
 export function initDynamicLayoutSystem() {
@@ -112,8 +120,7 @@ export function initDynamicLayoutSystem() {
     }
 
     if (needsAdjustment) {
-      if (layoutResizeTimeout) clearTimeout(layoutResizeTimeout);
-      layoutResizeTimeout = window.setTimeout(adjustDynamicLayouts, 100);
+      scheduleAdjustment(100);
     }
   });
 

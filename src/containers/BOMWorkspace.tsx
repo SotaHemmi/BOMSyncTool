@@ -11,6 +11,7 @@ import { BOMCompare } from '../components/BOMCompare';
 import { CompareResults } from '../components/CompareResults';
 import { ProjectPanel } from '../components/ProjectPanel';
 import { ActivityLog } from '../components/ActivityLog';
+import { useNativeDrop } from '../hooks/useNativeDrop';
 
 interface BOMWorkspaceProps {
   datasetAdapterA: BOMDatasetAdapter;
@@ -69,6 +70,20 @@ export const BOMWorkspace = memo(function BOMWorkspace({
     (projectId: string) => projects.deleteProject(projectId),
     [projects]
   );
+
+  // Tauriネイティブドロップイベントを処理
+  useNativeDrop({
+    onDrop: useCallback(
+      (dataset, path, fileName) => {
+        if (dataset === 'a') {
+          void datasetAdapterA.loadFile(path, fileName);
+        } else {
+          void datasetAdapterB.loadFile(path, fileName);
+        }
+      },
+      [datasetAdapterA, datasetAdapterB]
+    )
+  });
 
   return (
     <>
