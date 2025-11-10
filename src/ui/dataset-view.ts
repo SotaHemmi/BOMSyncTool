@@ -6,7 +6,6 @@
 
 import type { DatasetKey, ParseResult, ColumnMeta } from '../types';
 import { datasetState } from '../state/app-state';
-import { formatDateLabel } from '../utils';
 
 /**
  * プレビューテーブルを作成
@@ -214,7 +213,7 @@ export function updatePreviewCard(dataset: DatasetKey): void {
  * @deprecated React hooks が自動的に再レンダリングするため、この関数は不要です
  * @param dataset - データセットキー
  */
-export function updateDropzone(dataset: DatasetKey): void {
+export function updateDropzone(_dataset: DatasetKey): void {
   // React hooks が状態変更を検知して自動更新するため、何もしない
 }
 

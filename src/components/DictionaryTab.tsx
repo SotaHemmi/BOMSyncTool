@@ -167,6 +167,7 @@ function RegistrationActions({
                 type="button"
                 className="secondary-button target-apply-button"
                 disabled={isProcessing}
+                aria-pressed={targetDataset === 'a'}
                 onClick={() => handleTargetDatasetSelect('a')}
               >
                 BOM Aに適用
@@ -175,6 +176,7 @@ function RegistrationActions({
                 type="button"
                 className="primary-button target-apply-button"
                 disabled={isProcessing}
+                aria-pressed={targetDataset === 'b'}
                 onClick={() => handleTargetDatasetSelect('b')}
               >
                 BOM Bに適用
